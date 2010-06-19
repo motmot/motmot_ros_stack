@@ -152,7 +152,7 @@ int main(int argc, char** argv)
   ros::NodeHandle n;
 
   // topic is "image_raw", with queue size of 5
-  ros::Publisher chatter_pub = n.advertise<sensor_msgs::Image>("image_raw", 5);
+  ros::Publisher publisher = n.advertise<sensor_msgs::Image>("image_raw", 5);
 
   CamContext_start_camera(cc);
   _check_error();
@@ -212,36 +212,26 @@ int main(int argc, char** argv)
     int errnum = cam_iface_have_error();
     if (errnum == CAM_IFACE_FRAME_TIMEOUT) {
       cam_iface_clear_error();
-      fprintf(stdout,"T");
-      fflush(stdout);
       continue; // wait again
     }
     if (errnum == CAM_IFACE_FRAME_DATA_MISSING_ERROR) {
       cam_iface_clear_error();
-      fprintf(stdout,"M");
-      fflush(stdout);
     } else if (errnum == CAM_IFACE_FRAME_INTERRUPTED_SYSCALL) {
       cam_iface_clear_error();
-      fprintf(stdout,"I");
-      fflush(stdout);
     } else if (errnum == CAM_IFACE_FRAME_DATA_CORRUPT_ERROR) {
       cam_iface_clear_error();
-      fprintf(stdout,"C");
-      fflush(stdout);
     } else {
       _check_error();
-      fprintf(stdout,".");
-      fflush(stdout);
+
+      sensor_msgs::Image msg;
+      msg.height = height;
+      msg.width = width;
+      msg.encoding = encoding;
+      msg.step = step;
+      msg.data = data;
+
+      publisher.publish(msg);
     }
-
-    sensor_msgs::Image msg;
-    msg.height = height;
-    msg.width = width;
-    msg.encoding = encoding;
-    msg.step = step;
-    msg.data = data;
-
-    chatter_pub.publish(msg);
     ros::spinOnce();
   }
 }
