@@ -1,4 +1,5 @@
 #include <ros/ros.h>
+#include <ros/time.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
 #include <cam_iface.h>
@@ -223,7 +224,21 @@ int main(int argc, char** argv)
     } else {
       _check_error();
 
+      double timestamp;
+      CamContext_get_last_timestamp(cc,&timestamp);
+      _check_error();
+
+      unsigned long framenumber;
+      CamContext_get_last_framenumber(cc,&framenumber);
+      _check_error();
+
+
       sensor_msgs::Image msg;
+
+      msg.header.seq = framenumber;
+      msg.header.stamp = ros::Time(timestamp);
+      msg.header.frame_id = "0";
+
       msg.height = height;
       msg.width = width;
       msg.encoding = encoding;
