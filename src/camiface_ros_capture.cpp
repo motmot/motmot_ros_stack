@@ -21,6 +21,11 @@ int main(int argc, char** argv)
 
   ros::init(argc, argv, "camiface_ros_capture");
 
+  if (ros::this_node::getNamespace() == "/") {
+    ROS_WARN("[camiface_ros_capture] Started in the global namespace! This is probably wrong. Start camiface_ros_capture "
+             "in the camera namespace.\nExample command-line usage:\n"
+             "\t$ ROS_NAMESPACE=my_camera rosrun camiface camiface_ros_capture");
+  }
 
   cam_iface_startup_with_version_check();
   _check_error();
