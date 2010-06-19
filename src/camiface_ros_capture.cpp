@@ -163,8 +163,6 @@ int main(int argc, char** argv)
   CamContext_start_camera(cc);
   _check_error();
 
-  printf("will now run forever. press Ctrl-C to interrupt\n");
-
   int num_trigger_modes;
   CamContext_get_num_trigger_modes( cc, &num_trigger_modes );
   _check_error();
@@ -208,6 +206,8 @@ int main(int argc, char** argv)
     printf("do not know encoding for this format\n");
     exit(1);
   }
+
+  printf("will now run forever. press Ctrl-C to interrupt\n");
 
   while (ros::ok())
   {
