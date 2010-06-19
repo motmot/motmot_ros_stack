@@ -1,0 +1,14 @@
+<package>
+  <description brief="camiface">
+
+     camiface
+
+  </description>
+  <author>astraw</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/camiface</url>
+
+</package>
+
+
