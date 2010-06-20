@@ -1,16 +1,15 @@
 <package>
-  <description brief="camiface">
+  <description brief="camiface_ros">
 
-     camiface.
+     camiface_ros
 
-     Implements a node that publishes the "image_raw" topic as
-     documented at http://www.ros.org/wiki/image_proc .
+     Capture image streams using libcamiface for ROS.
 
   </description>
   <author>astraw</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
-  <url>http://ros.org/wiki/camiface</url>
+  <url>http://ros.org/wiki/camiface_ros</url>
   <depend package="roscpp"/>
   <depend package="sensor_msgs"/>
 </package>
