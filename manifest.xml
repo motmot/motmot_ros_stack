@@ -12,6 +12,7 @@
   <url>http://ros.org/wiki/camiface_ros</url>
   <depend package="roscpp"/>
   <depend package="sensor_msgs"/>
+
 </package>
 
 
