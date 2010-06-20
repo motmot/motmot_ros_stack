@@ -30,3 +30,6 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #target_link_libraries(example ${PROJECT_NAME})
 rosbuild_add_executable(camiface_ros_capture src/camiface_ros_capture.cpp)
 target_link_libraries(camiface_ros_capture cam_iface_mega)
+
+rosbuild_add_executable(raw_view src/raw_view.cpp)
+target_link_libraries(raw_view cam_iface_mega GLEW glut)
