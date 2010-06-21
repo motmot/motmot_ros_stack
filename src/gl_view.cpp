@@ -64,17 +64,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 typedef enum MyCameraPixelCodings {   CAM_IFACE_UNKNOWN=0,
   CAM_IFACE_MONO8, /* pure monochrome (no Bayer) */
-  CAM_IFACE_YUV411,
-  CAM_IFACE_YUV422,
-  CAM_IFACE_YUV444,
   CAM_IFACE_RGB8,
   CAM_IFACE_MONO16,
-  CAM_IFACE_RGB16,
-  CAM_IFACE_MONO16S,
-  CAM_IFACE_RGB16S,
-  CAM_IFACE_RAW8,
-  CAM_IFACE_RAW16,
-  CAM_IFACE_ARGB8,
   CAM_IFACE_MONO8_BAYER_BGGR, /* BGGR Bayer coding */
   CAM_IFACE_MONO8_BAYER_RGGB, /* RGGB Bayer coding */
   CAM_IFACE_MONO8_BAYER_GRBG, /* GRBG Bayer coding */
@@ -145,91 +136,6 @@ void image_cb(const sensor_msgs::ImageConstPtr& msg)
   glutPostRedisplay(); /* trigger display redraw */
 }
 
-void yuv422_to_mono8(const unsigned char *src_pixels, unsigned char *dest_pixels, int width, int height,
-					 size_t src_stride, size_t dest_stride) {
-  size_t i,j;
-  const unsigned char *src_chunk;
-  unsigned char *dest_chunk;
-  for (i=0; i<(unsigned int)height; i++) {
-    src_chunk = src_pixels + i*src_stride;
-    dest_chunk = dest_pixels + i*dest_stride;
-    for (j=0; j<((unsigned int)width/2); j++) {
-      dest_chunk[0] = src_chunk[1];
-      dest_chunk[1] = src_chunk[3];
-      dest_chunk+=2;
-      src_chunk+=4;
-    }
-  }
-}
-
-#define CLIP(m)                                 \
-  (m)<0?0:((m)>255?255:(m))
-
-// from http://en.wikipedia.org/wiki/YUV
-#define convert_chunk(src,dest,rgba) {                                  \
-  u = src[0];                                                           \
-  y1 = src[1];                                                          \
-  v = src[2];                                                           \
-  y2 = src[3];                                                          \
-                                                                        \
-  C1 = y1-16;                                                           \
-  C2 = y2-16;                                                           \
-  D = u-128;                                                            \
-  E = v-128;                                                            \
-                                                                        \
-  dest[0] = CLIP(( 298 * C1           + 409 * E + 128) >> 8);           \
-  dest[1] = CLIP(( 298 * C1 - 100 * D - 208 * E + 128) >> 8);           \
-  dest[2] = CLIP(( 298 * C1 + 516 * D           + 128) >> 8);           \
-  if (rgba) {                                                           \
-    dest[3] = 255;                                                      \
-    dest[4] = CLIP(( 298 * C2           + 409 * E + 128) >> 8);         \
-    dest[5] = CLIP(( 298 * C2 - 100 * D - 208 * E + 128) >> 8);         \
-    dest[6] = CLIP(( 298 * C2 + 516 * D           + 128) >> 8);         \
-    dest[7] = 255;                                                      \
-  } else {                                                              \
-    dest[3] = CLIP(( 298 * C2           + 409 * E + 128) >> 8);         \
-    dest[4] = CLIP(( 298 * C2 - 100 * D - 208 * E + 128) >> 8);         \
-    dest[5] = CLIP(( 298 * C2 + 516 * D           + 128) >> 8);         \
-  }                                                                     \
-}
-
-void yuv422_to_rgb8(const unsigned char *src_pixels, unsigned char *dest_pixels,
-					int width, int height, size_t src_stride,
-					size_t dest_stride) {
-  int C1, C2, D, E;
-  int i,j;
-  const unsigned char* src_chunk;
-  unsigned char* dest_chunk;
-  unsigned char u,y1,v,y2;
-  for (i=0; i<height; i++) {
-    src_chunk = src_pixels + i*src_stride;
-    dest_chunk = dest_pixels + i*dest_stride;
-    for (j=0; j<(width/2); j++) {
-      convert_chunk(src_chunk,dest_chunk,0);
-      dest_chunk+=6;
-      src_chunk+=4;
-    }
-  }
-}
-
-void yuv422_to_rgba8(const unsigned char *src_pixels, unsigned char *dest_pixels, int width, int height,
-					 size_t src_stride, size_t dest_stride) {
-  int C1, C2, D, E;
-  int i,j;
-  const unsigned char* src_chunk;
-  unsigned char* dest_chunk;
-  unsigned char u,y1,v,y2;
-  for (i=0; i<height; i++) {
-    src_chunk = src_pixels + i*src_stride;
-    dest_chunk = dest_pixels + i*dest_stride;
-    for (j=0; j<(width/2); j++) {
-      convert_chunk(src_chunk,dest_chunk,1);
-      dest_chunk+=8;
-      src_chunk+=4;
-    }
-  }
-}
-
 #define do_copy() {                                       \
   rowstart = dest;                                        \
   for (i=0; i<height; i++) {                              \
@@ -265,26 +171,6 @@ const unsigned char* convert_pixels(const unsigned char* src,
       break;
     default:
       fprintf(stderr,"ERROR: will not convert MONO8 image to non-luminance\n");
-      exit(1);
-      break;
-    }
-    break;
-  case CAM_IFACE_YUV422:
-    switch (gl_data_format) {
-    case GL_LUMINANCE:
-      yuv422_to_mono8(src_ptr, dest, width, height, stride, dest_stride);
-      return dest;
-      break;
-    case GL_RGB:
-      yuv422_to_rgb8(src_ptr, dest, width, height, stride, dest_stride);
-      return dest;
-      break;
-    case GL_RGBA:
-      yuv422_to_rgba8(src_ptr, dest, width, height, stride, dest_stride);
-      return dest;
-      break;
-    default:
-      fprintf(stderr,"ERROR: invalid conversion at line %d\n",__LINE__);
       exit(1);
       break;
     }
@@ -427,8 +313,7 @@ void initialize_gl_texture(std::string encoding) {
   printf("for %dx%d image, allocating %dx%d texture (fractions: %.2f, %.2f)\n",
          width,height,tex_width,tex_height,buf_wf,buf_hf);
 
-  if ((static_coding_map[encoding]==CAM_IFACE_RGB8) ||
-      (static_coding_map[encoding]==CAM_IFACE_YUV422)) {
+  if (static_coding_map[encoding]==CAM_IFACE_RGB8){
     bytes_per_pixel=4;
     gl_data_format = GL_RGBA;
 
