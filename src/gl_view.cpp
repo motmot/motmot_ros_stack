@@ -31,14 +31,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 
-#include <cam_iface.h>
-
 #include <ros/ros.h>
 #include <image_transport/image_transport.h>
+#include <sensor_msgs/image_encodings.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <map>
+#include <string>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -58,6 +60,27 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 #include <math.h>
 
+
+
+typedef enum MyCameraPixelCodings {   CAM_IFACE_UNKNOWN=0,
+  CAM_IFACE_MONO8, /* pure monochrome (no Bayer) */
+  CAM_IFACE_YUV411,
+  CAM_IFACE_YUV422,
+  CAM_IFACE_YUV444,
+  CAM_IFACE_RGB8,
+  CAM_IFACE_MONO16,
+  CAM_IFACE_RGB16,
+  CAM_IFACE_MONO16S,
+  CAM_IFACE_RGB16S,
+  CAM_IFACE_RAW8,
+  CAM_IFACE_RAW16,
+  CAM_IFACE_ARGB8,
+  CAM_IFACE_MONO8_BAYER_BGGR, /* BGGR Bayer coding */
+  CAM_IFACE_MONO8_BAYER_RGGB, /* RGGB Bayer coding */
+  CAM_IFACE_MONO8_BAYER_GRBG, /* GRBG Bayer coding */
+  CAM_IFACE_MONO8_BAYER_GBRG  /* GBRG Bayer coding */ } MyCameraPixelCodings;
+
+
 // globals (these are bad...)
 bool did_first_frame = false;
 int stride, width, height;
@@ -65,7 +88,6 @@ int use_pbo, use_shaders;
 GLuint pbo;
 size_t PBO_stride;
 int tex_width, tex_height;
-CameraPixelCoding coding = CAM_IFACE_MONO8_BAYER_BGGR; /* XXX fixme */
 GLuint textureId;
 double buf_wf, buf_hf;
 GLint gl_data_format;
@@ -73,11 +95,24 @@ GLint gl_data_format;
 GLhandleARB glsl_program;
 #endif
 
+static std::map<std::string, MyCameraPixelCodings> static_coding_map;
+
 // forward declarations
-void initialize_gl_texture();
+void initialize_gl_texture(std::string encoding);
 void upload_image_data_to_opengl(const unsigned char* raw_image_data,
-                                 CameraPixelCoding coding);
+                                 std::string encoding);
 void setShaders();
+
+void init_coding_map()
+{
+  static_coding_map[sensor_msgs::image_encodings::MONO8] = CAM_IFACE_MONO8;
+  static_coding_map[sensor_msgs::image_encodings::MONO16] = CAM_IFACE_MONO16;
+  static_coding_map[sensor_msgs::image_encodings::RGB8] = CAM_IFACE_RGB8;
+  static_coding_map[sensor_msgs::image_encodings::BAYER_BGGR8] = CAM_IFACE_MONO8_BAYER_BGGR;
+  static_coding_map[sensor_msgs::image_encodings::BAYER_RGGB8] = CAM_IFACE_MONO8_BAYER_RGGB;
+  static_coding_map[sensor_msgs::image_encodings::BAYER_GRBG8] = CAM_IFACE_MONO8_BAYER_GRBG;
+  static_coding_map[sensor_msgs::image_encodings::BAYER_GBRG8] = CAM_IFACE_MONO8_BAYER_GBRG;
+}
 
 void image_cb(const sensor_msgs::ImageConstPtr& msg)
 {
@@ -92,7 +127,7 @@ void image_cb(const sensor_msgs::ImageConstPtr& msg)
     width = msg->width; // XXX FIXME TODO: check when data != MONO8 or Bayer
     height = msg->height;
 
-    initialize_gl_texture();
+    initialize_gl_texture(msg->encoding);
 
     if (use_pbo) {
       glGenBuffers(1, &pbo);
@@ -106,7 +141,7 @@ void image_cb(const sensor_msgs::ImageConstPtr& msg)
 
   }
 
-  upload_image_data_to_opengl(&msg->data[0], coding);
+  upload_image_data_to_opengl(&msg->data[0], msg->encoding);
   glutPostRedisplay(); /* trigger display redraw */
 }
 
@@ -204,7 +239,7 @@ void yuv422_to_rgba8(const unsigned char *src_pixels, unsigned char *dest_pixels
 }
 
 const unsigned char* convert_pixels(const unsigned char* src,
-                     CameraPixelCoding src_coding,
+                     std::string src_coding,
                      size_t dest_stride,
                      unsigned char* dest, int force_copy) {
   static int gave_error=0;
@@ -218,7 +253,7 @@ const unsigned char* convert_pixels(const unsigned char* src,
   copy_required = force_copy || (dest_stride!=stride);
   src_ptr = src;
 
-  switch (src_coding) {
+  switch (static_coding_map[src_coding]) {
   case CAM_IFACE_MONO8:
     switch (gl_data_format) {
     case GL_LUMINANCE:
@@ -309,7 +344,7 @@ const unsigned char* convert_pixels(const unsigned char* src,
       if (use_shaders) {
 
         firstRed = glGetUniformLocation(glsl_program,"firstRed");
-        switch(src_coding) {
+        switch(static_coding_map[src_coding]) {
         case CAM_IFACE_MONO8_BAYER_BGGR:
           glUniform2f(firstRed,0,0);
           break;
@@ -352,7 +387,7 @@ const unsigned char* convert_pixels(const unsigned char* src,
     }
   default:
     if (!gave_error) {
-      fprintf(stderr,"ERROR: unsupported pixel coding %d\n",src_coding);
+      fprintf(stderr,"ERROR: unsupported pixel coding %s\n",src_coding.c_str());
       gave_error=1;
     }
     if (copy_required) {
@@ -369,7 +404,7 @@ double next_power_of_2(double f) {
   return pow(2.0,ceil(log(f)/log(2.0)));
 }
 
-void initialize_gl_texture() {
+void initialize_gl_texture(std::string encoding) {
   int bytes_per_pixel;
   char *buffer;
 
@@ -392,7 +427,8 @@ void initialize_gl_texture() {
   printf("for %dx%d image, allocating %dx%d texture (fractions: %.2f, %.2f)\n",
          width,height,tex_width,tex_height,buf_wf,buf_hf);
 
-  if ((coding==CAM_IFACE_RGB8) || (coding==CAM_IFACE_YUV422)) {
+  if ((static_coding_map[encoding]==CAM_IFACE_RGB8) ||
+      (static_coding_map[encoding]==CAM_IFACE_YUV422)) {
     bytes_per_pixel=4;
     gl_data_format = GL_RGBA;
 
@@ -402,7 +438,7 @@ void initialize_gl_texture() {
     //bytes_per_pixel=3;
     // gl_data_format = GL_RGB;
 
-  } else if (coding==CAM_IFACE_MONO16) {
+  } else if (static_coding_map[encoding]==CAM_IFACE_MONO16) {
     bytes_per_pixel=1;
     gl_data_format = GL_LUMINANCE;
   } else {
@@ -641,6 +677,7 @@ void setShaders() {
 #endif  /* ifdef USE_GLEW */
 
 int main(int argc, char** argv) {
+  init_coding_map();
 
   glutInit(&argc, argv);
   ros::init(argc, argv, "raw_view", ros::init_options::AnonymousName);
@@ -694,7 +731,7 @@ int main(int argc, char** argv) {
 /* Send the data to OpenGL. Use the fastest possible method. */
 
 void upload_image_data_to_opengl(const unsigned char* raw_image_data,
-                                 CameraPixelCoding coding) {
+                                 std::string encoding) {
   const unsigned char * gl_image_data;
   static unsigned char* show_pixels=NULL;
   GLubyte* ptr;
@@ -709,7 +746,7 @@ void upload_image_data_to_opengl(const unsigned char* raw_image_data,
     glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, PBO_stride*tex_height, 0, GL_STREAM_DRAW_ARB);
     ptr = (GLubyte*)glMapBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, GL_WRITE_ONLY_ARB);
     if(ptr) {
-      convert_pixels(raw_image_data, coding, PBO_stride, ptr, 1);
+      convert_pixels(raw_image_data, encoding, PBO_stride, ptr, 1);
       glUnmapBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB); // release pointer to mapping buffer
     }
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
@@ -725,7 +762,7 @@ void upload_image_data_to_opengl(const unsigned char* raw_image_data,
       }
     }
 
-    gl_image_data = convert_pixels(raw_image_data, coding, PBO_stride, show_pixels, 0);
+    gl_image_data = convert_pixels(raw_image_data, encoding, PBO_stride, show_pixels, 0);
 
     glBindTexture(GL_TEXTURE_2D, textureId);
     glTexSubImage2D(GL_TEXTURE_2D, /* target */

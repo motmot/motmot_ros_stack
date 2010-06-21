@@ -32,6 +32,6 @@ rosbuild_add_executable(camiface_ros_capture src/camiface_ros_capture.cpp)
 target_link_libraries(camiface_ros_capture cam_iface_mega)
 
 rosbuild_add_executable(gl_view src/gl_view.cpp)
-target_link_libraries(gl_view cam_iface_mega GLEW glut)
+target_link_libraries(gl_view GLEW glut)
 
 rosbuild_add_executable(raw_info src/raw_info.cpp)
