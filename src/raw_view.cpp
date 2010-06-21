@@ -67,12 +67,17 @@ size_t PBO_stride;
 int tex_width, tex_height;
 CameraPixelCoding coding = CAM_IFACE_MONO8_BAYER_BGGR; /* XXX fixme */
 GLuint textureId;
+double buf_wf, buf_hf;
+GLint gl_data_format;
+#ifdef USE_GLEW
+GLhandleARB glsl_program;
+#endif
 
 // forward declarations
 void initialize_gl_texture();
 void upload_image_data_to_opengl(const unsigned char* raw_image_data,
                                  CameraPixelCoding coding);
-
+void setShaders();
 
 void image_cb(const sensor_msgs::ImageConstPtr& msg)
 {
@@ -104,18 +109,6 @@ void image_cb(const sensor_msgs::ImageConstPtr& msg)
   upload_image_data_to_opengl(&msg->data[0], coding);
   glutPostRedisplay(); /* trigger display redraw */
 }
-
-
-#define MAX_N_CAMERAS 1
-
-double buf_wf, buf_hf;
-GLint gl_data_format;
-
-#ifdef USE_GLEW
-GLhandleARB glsl_program;
-#endif
-
-void setShaders();
 
 void yuv422_to_mono8(const unsigned char *src_pixels, unsigned char *dest_pixels, int width, int height,
 					 size_t src_stride, size_t dest_stride) {
@@ -370,12 +363,6 @@ const unsigned char* convert_pixels(const unsigned char* src,
     }
     break;
   }
-}
-
-void show_usage(char * cmd) {
-  printf("usage: %s [num_frames]\n",cmd);
-  printf("  where num_frames can be a number or 'forever'\n");
-  exit(1);
 }
 
 double next_power_of_2(double f) {
@@ -752,11 +739,4 @@ void upload_image_data_to_opengl(const unsigned char* raw_image_data,
                     gl_image_data);
 
   }
-}
-
-/* grab_frame() is the idle-time callback function. It grabs an image,
-   sends it to OpenGL, and tells GLUT to do the display function
-   callback. */
-
-void grab_frame(void) {
 }
