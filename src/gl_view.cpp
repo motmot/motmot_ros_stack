@@ -38,10 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
 
-#define USE_GLEW 1
-#ifdef USE_GLEW
-#  include <GL/glew.h>
-#endif
+#include <GL/glew.h>
 #if defined(__APPLE__)
 #  include <OpenGL/gl.h>
 #  include <GLUT/glut.h>
@@ -70,9 +67,7 @@ int tex_width, tex_height;
 GLuint textureId;
 double buf_wf, buf_hf;
 GLint gl_data_format;
-#ifdef USE_GLEW
 GLhandleARB glsl_program;
-#endif
 
 static std::map<std::string, MyCameraPixelCodings> static_coding_map;
 
@@ -205,7 +200,6 @@ const unsigned char* convert_pixels(const unsigned char* src,
       break;
     }
     break;
-#ifdef USE_GLEW
   case CAM_IFACE_MONO8_BAYER_BGGR:
   case CAM_IFACE_MONO8_BAYER_RGGB:
   case CAM_IFACE_MONO8_BAYER_GRBG:
@@ -241,7 +235,6 @@ const unsigned char* convert_pixels(const unsigned char* src,
     do_copy();
     return dest;
     break;
-#endif
   case CAM_IFACE_MONO16:
     switch (gl_data_format) {
     case GL_LUMINANCE:
@@ -431,7 +424,6 @@ char *textFileRead(const char *fn) {
         return content;
 }
 
-#ifdef USE_GLEW
         void printShaderInfoLog(GLuint obj)
         {
             int infologLength = 0;
@@ -547,7 +539,6 @@ void setShaders() {
                             1.0/PBO_stride,1.0/height);
                 glUniform1i(shader_texture_source, 0);
 }
-#endif  /* ifdef USE_GLEW */
 
 int main(int argc, char** argv) {
   init_coding_map();
@@ -574,7 +565,6 @@ int main(int argc, char** argv) {
 
   use_shaders=0;
 
-#ifdef USE_GLEW
   glewInit();
   if (glewIsSupported("GL_VERSION_2_0 "
                       "GL_ARB_pixel_buffer_object")) {
@@ -589,10 +579,6 @@ int main(int argc, char** argv) {
     printf("GLEW available, but no pixel buffer support -- not using PBO\n");
     use_pbo=0;
   }
-#else
-  printf("GLEW not available -- not using PBO\n");
-  use_pbo=0;
-#endif
 
   glutDisplayFunc(display_pixels); // set the display callback
   glutIdleFunc(ros::spinOnce); // set the idle callback
@@ -610,7 +596,6 @@ void upload_image_data_to_opengl(const unsigned char* raw_image_data,
   GLubyte* ptr;
 
   if (use_pbo) {
-#ifdef USE_GLEW
     glBindTexture(GL_TEXTURE_2D, textureId);
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
 
@@ -623,7 +608,6 @@ void upload_image_data_to_opengl(const unsigned char* raw_image_data,
       glUnmapBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB); // release pointer to mapping buffer
     }
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
-#endif  /* ifdef USE_GLEW */
   } else {
 
     if (show_pixels==NULL) {
