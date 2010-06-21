@@ -66,6 +66,7 @@ GLuint pbo;
 size_t PBO_stride;
 int tex_width, tex_height;
 CameraPixelCoding coding = CAM_IFACE_MONO8_BAYER_BGGR; /* XXX fixme */
+GLuint textureId;
 
 // forward declarations
 void initialize_gl_texture();
@@ -108,7 +109,6 @@ void image_cb(const sensor_msgs::ImageConstPtr& msg)
 #define MAX_N_CAMERAS 1
 
 double buf_wf, buf_hf;
-GLuint textureId_all[MAX_N_CAMERAS];
 GLint gl_data_format;
 
 #ifdef USE_GLEW
@@ -435,9 +435,8 @@ void initialize_gl_texture() {
   }
 
   int ncams=1;
-  glGenTextures(ncams, &(textureId_all[0]));
-for (int i=0; i<ncams; i++) {
-  GLuint textureId = textureId_all[i];
+  glGenTextures(ncams, &textureId);
+
   glBindTexture(GL_TEXTURE_2D, textureId);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -449,13 +448,11 @@ for (int i=0; i<ncams; i++) {
                gl_data_format, // format
                GL_UNSIGNED_BYTE, // type
                buffer);
- }
   free(buffer);
   glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void display_pixels(void) {
-  GLuint textureId;
   int i;
   int ncols,nrows,col_idx,row_idx;
   float wfrac, hfrac, lowx, highx, lowy, highy;
@@ -480,8 +477,6 @@ void display_pixels(void) {
 
   //  printf("i %d\n col_idx %d, row_idx %d, lowx %f, highx %f, lowy %f, highy %f\n",
   // i,col_idx, row_idx, lowx, highx, lowy, highy );
-
-  textureId = textureId_all[i];
 
   //glClear(GL_COLOR_BUFFER_BIT);
     glBindTexture(GL_TEXTURE_2D, textureId);
@@ -715,11 +710,7 @@ void upload_image_data_to_opengl(const unsigned char* raw_image_data,
                                  CameraPixelCoding coding) {
   const unsigned char * gl_image_data;
   static unsigned char* show_pixels=NULL;
-  GLuint textureId;
   GLubyte* ptr;
-  int device_number = 0;
-
-  textureId = textureId_all[device_number];
 
   if (use_pbo) {
 #ifdef USE_GLEW
