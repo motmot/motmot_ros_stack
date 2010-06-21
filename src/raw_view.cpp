@@ -31,22 +31,20 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 
+#include <cam_iface.h>
+
+#include <ros/ros.h>
+#include <image_transport/image_transport.h>
+
 #include <stdio.h>
-#ifdef _WIN32
-#include <Windows.h>
-#include <sys/timeb.h>
-#else
-#include <sys/time.h>
-#endif
 #include <stdlib.h>
-#include <time.h>
 #include <string.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define USE_GLEW
+#define USE_GLEW 1
 #ifdef USE_GLEW
 #  include <GL/glew.h>
 #endif
@@ -60,37 +58,62 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 #include <math.h>
 
-#include "cam_iface.h"
-
-#define MAX_N_CAMERAS 10
-
-/* global variables */
-CamContext *cc_all[MAX_N_CAMERAS];
-int ncams=0;
-
+// globals (these are bad...)
+bool did_first_frame = false;
 int stride, width, height;
-unsigned char *raw_pixels;
-double buf_wf, buf_hf;
-GLuint pbo;
-GLuint textureId_all[MAX_N_CAMERAS];
 int use_pbo, use_shaders;
-int tex_width, tex_height;
+GLuint pbo;
 size_t PBO_stride;
+int tex_width, tex_height;
+CameraPixelCoding coding = CAM_IFACE_MONO8_BAYER_BGGR; /* XXX fixme */
+
+// forward declarations
+void initialize_gl_texture();
+void upload_image_data_to_opengl(const unsigned char* raw_image_data,
+                                 CameraPixelCoding coding);
+
+
+void image_cb(const sensor_msgs::ImageConstPtr& msg)
+{
+  if (!did_first_frame) {
+    fprintf(stdout,"Got first frame, setting up\n");
+
+    // initialize everything...
+
+    did_first_frame = true;
+
+    stride = msg->step;
+    width = msg->width; // XXX FIXME TODO: check when data != MONO8 or Bayer
+    height = msg->height;
+
+    initialize_gl_texture();
+
+    if (use_pbo) {
+      glGenBuffers(1, &pbo);
+      glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+      glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB,
+                   PBO_stride*tex_height, 0, GL_STREAM_DRAW);
+    }
+
+    glEnable(GL_TEXTURE_2D);
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+  }
+
+  upload_image_data_to_opengl(&msg->data[0], coding);
+  glutPostRedisplay(); /* trigger display redraw */
+}
+
+
+#define MAX_N_CAMERAS 1
+
+double buf_wf, buf_hf;
+GLuint textureId_all[MAX_N_CAMERAS];
 GLint gl_data_format;
 
 #ifdef USE_GLEW
 GLhandleARB glsl_program;
 #endif
-
-#define _check_error() {                                                \
-    int _check_error_err;                                               \
-    _check_error_err = cam_iface_have_error();                          \
-    if (_check_error_err != 0) {                                        \
-                                                                        \
-      fprintf(stderr,"%s:%d %s\n", __FILE__,__LINE__,cam_iface_get_error_string()); \
-      exit(1);                                                          \
-    }                                                                   \
-  }                                                                     \
 
 void setShaders();
 
@@ -187,12 +210,12 @@ void yuv422_to_rgba8(const unsigned char *src_pixels, unsigned char *dest_pixels
   }                                                       \
 }
 
-unsigned char* convert_pixels(unsigned char* src,
+const unsigned char* convert_pixels(const unsigned char* src,
                      CameraPixelCoding src_coding,
                      size_t dest_stride,
                      unsigned char* dest, int force_copy) {
   static int gave_error=0;
-  unsigned char *src_ptr;
+  const unsigned char *src_ptr;
   static int attempted_to_start_glsl_program=0;
   GLubyte* rowstart;
   int i,j;
@@ -285,10 +308,13 @@ unsigned char* convert_pixels(unsigned char* src,
   case CAM_IFACE_MONO8_BAYER_RGGB:
   case CAM_IFACE_MONO8_BAYER_GRBG:
   case CAM_IFACE_MONO8_BAYER_GBRG:
+
+
     //FIXME: add switch (gl_data_format)
     if (!attempted_to_start_glsl_program) {
       setShaders();
       if (use_shaders) {
+
         firstRed = glGetUniformLocation(glsl_program,"firstRed");
         switch(src_coding) {
         case CAM_IFACE_MONO8_BAYER_BGGR:
@@ -357,11 +383,8 @@ double next_power_of_2(double f) {
 }
 
 void initialize_gl_texture() {
-  char *buffer;
   int bytes_per_pixel;
-  CamContext *cc = cc_all[0];
-  GLuint textureId;
-  int i;
+  char *buffer;
 
   if (use_pbo) {
     // align
@@ -382,26 +405,23 @@ void initialize_gl_texture() {
   printf("for %dx%d image, allocating %dx%d texture (fractions: %.2f, %.2f)\n",
          width,height,tex_width,tex_height,buf_wf,buf_hf);
 
-  if ((cc->coding==CAM_IFACE_RGB8) || (cc->coding==CAM_IFACE_YUV422)) {
+  if ((coding==CAM_IFACE_RGB8) || (coding==CAM_IFACE_YUV422)) {
     bytes_per_pixel=4;
     gl_data_format = GL_RGBA;
 
-    /* This gives only grayscale images ATI fglrx Ubuntu Jaunty, but
-       transfers less data:     */
+    // This gives only grayscale images ATI fglrx Ubuntu Jaunty, but
+    // transfers less data:
 
-    /*
-    bytes_per_pixel=3;
-    gl_data_format = GL_RGB;
-    */
+    //bytes_per_pixel=3;
+    // gl_data_format = GL_RGB;
 
-  } else if (cc->coding==CAM_IFACE_MONO16) {
+  } else if (coding==CAM_IFACE_MONO16) {
     bytes_per_pixel=1;
     gl_data_format = GL_LUMINANCE;
   } else {
     bytes_per_pixel=1;
     gl_data_format = GL_LUMINANCE;
   }
-  printf("bytes per pixel %d, depth/8 %d\n",bytes_per_pixel,(cc->depth/8));
   PBO_stride = PBO_stride*bytes_per_pixel; // FIXME this pads the rows more than necessary
 
   if (use_pbo) {
@@ -414,42 +434,37 @@ void initialize_gl_texture() {
     exit(1);
   }
 
+  int ncams=1;
   glGenTextures(ncams, &(textureId_all[0]));
-for (i=0; i<ncams; i++) {
-  textureId = textureId_all[i];
+for (int i=0; i<ncams; i++) {
+  GLuint textureId = textureId_all[i];
   glBindTexture(GL_TEXTURE_2D, textureId);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexImage2D(GL_TEXTURE_2D, /* target */
-               0, /* mipmap level */
-               GL_RGBA, /* internal format */
+  glTexImage2D(GL_TEXTURE_2D, // target
+               0, // mipmap level
+               GL_RGBA, // internal format
                tex_width, tex_height,
-               0, /* border */
-               gl_data_format, /* format */
-               GL_UNSIGNED_BYTE, /* type */
+               0, // border
+               gl_data_format, // format
+               GL_UNSIGNED_BYTE, // type
                buffer);
  }
   free(buffer);
   glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void grab_frame(void); /* forward declaration */
-
 void display_pixels(void) {
   GLuint textureId;
   int i;
   int ncols,nrows,col_idx,row_idx;
   float wfrac, hfrac, lowx, highx, lowy, highy;
-  if (ncams > 2) {
-    nrows = 2;
-  } else {
-    nrows = 1;
-  }
-  ncols = (ncams+1) / 2;
+  nrows = 1;
+  ncols = 1;
   wfrac = 2.0f/ncols;
   hfrac = 2.0f/nrows;
 
-for (i=0; i<ncams; i++) {
+  i=0;
 
   if (i < ncols) {
     row_idx = 0;
@@ -491,9 +506,8 @@ for (i=0; i<ncams; i++) {
 
     glutSwapBuffers();
 }
-}
 
-char *textFileRead(char *fn) {
+char *textFileRead(const char *fn) {
 
 
         FILE *fp;
@@ -614,15 +628,15 @@ void setShaders() {
                   return;
                 }
 
-                printShaderInfoLog(vertex_program);
-                printShaderInfoLog(fragment_program);
+                //printShaderInfoLog(vertex_program);
+                //printShaderInfoLog(fragment_program);
 
                 glsl_program = glCreateProgram();
                 glAttachShader(glsl_program,vertex_program);
                 glAttachShader(glsl_program,fragment_program);
                 glLinkProgram(glsl_program);
 
-                printProgramInfoLog(glsl_program);
+                //printProgramInfoLog(glsl_program);
 
                 glGetProgramiv(glsl_program,GL_LINK_STATUS,&status);
                 if (status!=GL_TRUE) {
@@ -632,7 +646,6 @@ void setShaders() {
                 }
 
                 glUseProgram(glsl_program);
-                printf("GLSL shaders in use\n");
 
 
                 sourceSize = glGetUniformLocation(glsl_program,"sourceSize");
@@ -646,111 +659,26 @@ void setShaders() {
 #endif  /* ifdef USE_GLEW */
 
 int main(int argc, char** argv) {
-  int device_number,num_buffers;
-
-  int buffer_size;
-  int num_modes, num_props, num_trigger_modes;
-  char mode_string[255];
-  int i,mode_number;
-  CameraPropertyInfo cam_props;
-  long prop_value;
-  int prop_auto;
-  int left, top;
-  int orig_left, orig_top, orig_width, orig_height, orig_stride;
-  cam_iface_constructor_func_t new_CamContext;
-  Camwire_id cam_info_struct;
-  CamContext *cc;
 
   glutInit(&argc, argv);
-
-  cam_iface_startup_with_version_check();
-  _check_error();
-
-  printf("using driver %s\n",cam_iface_get_driver_name());
-
-  ncams = cam_iface_get_num_cameras();
-  _check_error();
-
-  if (ncams<1) {
-
-    printf("no cameras found, will now exit\n");
-
-    cam_iface_shutdown();
-    _check_error();
-
-    exit(1);
-  }
-  _check_error();
-
-  printf("%d camera(s) found.\n",ncams);
-  for (i=0; i<ncams; i++) {
-    cam_iface_get_camera_info(i, &cam_info_struct);
-    printf("  camera %d:\n",i);
-    printf("    vendor: %s\n",cam_info_struct.vendor);
-    printf("    model: %s\n",cam_info_struct.model);
-    printf("    chip: %s\n",cam_info_struct.chip);
+  ros::init(argc, argv, "raw_view", ros::init_options::AnonymousName);
+  ros::NodeHandle nh;
+  if (nh.resolveName("image") == "/image") {
+    ROS_WARN("raw_view: image has not been remapped! Typical command-line usage:\n"
+             "\t$ ./raw_view image:=<image topic> [transport]");
   }
 
-for (device_number = 0; device_number < ncams; device_number++) {
+  std::string transport = (argc > 1) ? argv[1] : "raw";
+  image_transport::Subscriber sub_;
+  image_transport::ImageTransport it(nh);
 
-  printf("choosing camera %d\n",device_number);
-
-  cam_iface_get_num_modes(device_number, &num_modes);
-  _check_error();
-
-  printf("%d mode(s) available:\n",num_modes);
-
-  mode_number = 0;
-
-  for (i=0; i<num_modes; i++) {
-    cam_iface_get_mode_string(device_number,i,mode_string,255);
-    if (strstr(mode_string,"FORMAT7_0")!=NULL) {
-      if (strstr(mode_string,"MONO8")!=NULL) {
-        // pick this mode
-        mode_number = i;
-      }
-    }
-    printf("  %d: %s\n",i,mode_string);
-  }
-
-  printf("Choosing mode %d\n",mode_number);
-
-  num_buffers = 5;
-
-  new_CamContext = cam_iface_get_constructor_func(device_number);
-  cc_all[device_number] = new_CamContext(device_number,num_buffers,mode_number);
-  _check_error();
-
-  cc = cc_all[device_number];
-
-  CamContext_get_frame_roi(cc, &left, &top, &width, &height);
-  _check_error();
-
-  stride = width*cc->depth/8;
-  printf("raw image width: %d, stride: %d\n",width,stride);
-
-  if (device_number==0) {
-    orig_left = left;
-    orig_top = top;
-    orig_width = width;
-    orig_height = height;
-    orig_stride = stride;
-  } else {
-    if (!((orig_left == left) &&
-	  (orig_top == top) &&
-	  (orig_width == width) &&
-	  (orig_height == height) &&
-	  (orig_stride = stride))) {
-      fprintf(stderr,"not all cameras have same shape\n");
-      exit(1);
-    }
-  }
-}
+  std::string topic = nh.resolveName("image");
+  sub_ = it.subscribe(topic, 1, &image_cb, transport);
 
   glutInitWindowPosition(-1,-1);
-  glutInitWindowSize(width, height);
+  glutInitWindowSize(640, 480);
   glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE );
-  glutCreateWindow("libcamiface liveview");
+  glutCreateWindow(nh.resolveName("image").c_str());
 
   use_shaders=0;
 
@@ -758,7 +686,6 @@ for (device_number = 0; device_number < ncams; device_number++) {
   glewInit();
   if (glewIsSupported("GL_VERSION_2_0 "
                       "GL_ARB_pixel_buffer_object")) {
-    printf("PBO enabled\n");
     use_pbo=1;
 
     if (GLEW_ARB_vertex_shader && GLEW_ARB_fragment_shader) {
@@ -775,118 +702,22 @@ for (device_number = 0; device_number < ncams; device_number++) {
   use_pbo=0;
 #endif
 
-  initialize_gl_texture();
-
-#ifdef USE_GLEW
-  if (use_pbo) {
-    glGenBuffers(1, &pbo);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
-    glBufferData(GL_PIXEL_UNPACK_BUFFER_ARB,
-                 PBO_stride*tex_height, 0, GL_STREAM_DRAW);
-  }
-#endif  /* ifdef USE_GLEW */
-
-  glEnable(GL_TEXTURE_2D);
-  glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-for (device_number=0; device_number < ncams; device_number++) {
-  cc = cc_all[device_number];
-
-  CamContext_get_num_framebuffers(cc,&num_buffers);
-  printf("allocated %d buffers\n",num_buffers);
-
-  CamContext_get_num_camera_properties(cc,&num_props);
-  _check_error();
-
-  for (i=0; i<num_props; i++) {
-    CamContext_get_camera_property_info(cc,i,&cam_props);
-    _check_error();
-
-    if (strcmp(cam_props.name,"white balance")==0) {
-      fprintf(stderr,"WARNING: ignoring white balance property\n");
-      continue;
-    }
-
-    if (cam_props.is_present) {
-      CamContext_get_camera_property(cc,i,&prop_value,&prop_auto);
-      _check_error();
-      printf("  %s: %ld\n",cam_props.name,prop_value);
-    } else {
-      printf("  %s: not present\n",cam_props.name);
-    }
-  }
-
-  CamContext_get_buffer_size(cc,&buffer_size);
-  _check_error();
-
-  if (buffer_size == 0) {
-    fprintf(stderr,"buffer size was 0 in %s, line %d\n",__FILE__,__LINE__);
-    exit(1);
-  }
- }
-
-#define USE_COPY
-#ifdef USE_COPY
-  raw_pixels = (unsigned char *)malloc( buffer_size );
-  if (raw_pixels==NULL) {
-    fprintf(stderr,"couldn't allocate memory in %s, line %d\n",__FILE__,__LINE__);
-    exit(1);
-  }
-#endif
-
-for (device_number=0; device_number < ncams; device_number++) {
-  cc = cc_all[device_number];
-  CamContext_start_camera(cc);
-  _check_error();
-}
-
-  printf("will now run forever. press Ctrl-C to interrupt\n");
-
-for (device_number=0; device_number < ncams; device_number++) {
-  cc = cc_all[device_number];
-
-  CamContext_get_num_trigger_modes( cc, &num_trigger_modes );
-  _check_error();
-
-  printf("trigger modes:\n");
-  for (i =0; i<num_trigger_modes; i++) {
-    CamContext_get_trigger_mode_string( cc, i, mode_string, 255 );
-    printf("  %d: %s\n",i,mode_string);
-  }
-  printf("\n");
- }
-
-  glutDisplayFunc(display_pixels); /* set the display callback */
-  glutIdleFunc(grab_frame); /* set the idle callback */
+  glutDisplayFunc(display_pixels); // set the display callback
+  glutIdleFunc(ros::spinOnce); // set the idle callback
 
   glutMainLoop();
-  printf("\n");
-
-for (device_number=0; device_number < ncams; device_number++) {
-  cc = cc_all[device_number];
-  delete_CamContext(cc);
-  _check_error();
-}
-
-  cam_iface_shutdown();
-  _check_error();
-
-#ifdef USE_COPY
-  free(raw_pixels);
-#endif
-
   return 0;
 }
 
 /* Send the data to OpenGL. Use the fastest possible method. */
 
-void upload_image_data_to_opengl(unsigned char* raw_image_data,
-                                 CameraPixelCoding coding,
-				 int device_number) {
-  unsigned char * gl_image_data;
+void upload_image_data_to_opengl(const unsigned char* raw_image_data,
+                                 CameraPixelCoding coding) {
+  const unsigned char * gl_image_data;
   static unsigned char* show_pixels=NULL;
   GLuint textureId;
   GLubyte* ptr;
+  int device_number = 0;
 
   textureId = textureId_all[device_number];
 
@@ -937,53 +768,4 @@ void upload_image_data_to_opengl(unsigned char* raw_image_data,
    callback. */
 
 void grab_frame(void) {
-  int errnum;
-  CamContext *cc;
-  static int next_device_number=0;
-  int data_ok = 0;
-
-#ifdef USE_COPY
-    cc = cc_all[next_device_number];
-
-    CamContext_grab_next_frame_blocking(cc,raw_pixels,-1); // block forever
-    errnum = cam_iface_have_error();
-    if (errnum == CAM_IFACE_FRAME_TIMEOUT) {
-      cam_iface_clear_error();
-      return; // wait again
-    }
-    if (errnum == CAM_IFACE_FRAME_DATA_MISSING_ERROR) {
-      cam_iface_clear_error();
-      fprintf(stdout,"M");
-      fflush(stdout);
-    } else if (errnum == CAM_IFACE_FRAME_INTERRUPTED_SYSCALL) {
-      cam_iface_clear_error();
-      fprintf(stdout,"I");
-      fflush(stdout);
-    } else if (errnum == CAM_IFACE_FRAME_DATA_CORRUPT_ERROR) {
-      cam_iface_clear_error();
-      fprintf(stdout,"C");
-      fflush(stdout);
-    } else {
-      _check_error();
-      data_ok = 1;
-    }
-
-    next_device_number++;
-    next_device_number = next_device_number % ncams;
-    if (data_ok) {
-      upload_image_data_to_opengl(raw_pixels,cc->coding,next_device_number);
-    }
-
-#else
-    CamContext_point_next_frame_blocking(cc,&raw_pixels,-1.0f);
-    _check_error();
-
-    upload_image_data_to_opengl(raw_pixels,cc->coding,next_device_number);
-
-    CamContext_unpoint_frame(cc);
-    _check_error();
-#endif
-
-    glutPostRedisplay(); /* trigger display redraw */
-
 }
