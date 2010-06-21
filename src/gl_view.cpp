@@ -31,26 +31,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 
-#include <ros/ros.h>
-#include <image_transport/image_transport.h>
-#include <sensor_msgs/image_encodings.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include <map>
 #include <string>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+#include <ros/ros.h>
+#include <image_transport/image_transport.h>
+#include <sensor_msgs/image_encodings.h>
 
 #define USE_GLEW 1
 #ifdef USE_GLEW
 #  include <GL/glew.h>
 #endif
-
 #if defined(__APPLE__)
 #  include <OpenGL/gl.h>
 #  include <GLUT/glut.h>
@@ -58,9 +49,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #  include <GL/gl.h>
 #  include <GL/glut.h>
 #endif
-#include <math.h>
-
-
 
 typedef enum MyCameraPixelCodings {   CAM_IFACE_UNKNOWN=0,
   CAM_IFACE_MONO8, /* pure monochrome (no Bayer) */
