@@ -34,6 +34,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <ros/time.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
+#include <image_transport/image_transport.h>
+#include <camera_info_manager/camera_info_manager.h>
+
 #include <cam_iface.h>
 
 #define _check_error() {                                                \
@@ -49,6 +52,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 int main(int argc, char** argv)
 {
   CamContext *cc;
+  CameraInfoManager *cam_info_manager;
+  sensor_msgs::CameraInfo cam_info;
   int num_buffers;
 
   ros::init(argc, argv, "camiface_ros_capture");
@@ -188,9 +193,18 @@ int main(int argc, char** argv)
   }
 
   ros::NodeHandle n;
+  cam_info_manager = new CameraInfoManager(n);
 
-  // topic is "image_raw", with queue size of 5
-  ros::Publisher publisher = n.advertise<sensor_msgs::Image>("image_raw", 5);
+  if (!cam_info_manager->setCameraName(ros::this_node::getNamespace())) {
+    ROS_WARN_STREAM("[" << ros::this_node::getNamespace() << "] name not valid"
+                    << " for camera_info_manger");
+  }
+
+  // topic is "image_raw", with queue size of 1
+
+  // image transport interfaces
+  image_transport::ImageTransport *transport = new image_transport::ImageTransport(n);
+  image_transport::CameraPublisher publisher = transport->advertiseCamera("image_raw", 1);
 
   CamContext_start_camera(cc);
   _check_error();
@@ -282,7 +296,13 @@ int main(int argc, char** argv)
       msg.step = step;
       msg.data = data;
 
-      publisher.publish(msg);
+      // get current CameraInfo data
+      cam_info = cam_info_manager->getCameraInfo();
+      cam_info.header.stamp = msg.header.stamp;
+      cam_info.header.seq = msg.header.seq;
+      cam_info.header.frame_id = msg.header.frame_id;
+
+      publisher.publish(msg, cam_info);
     }
     ros::spinOnce();
   }
