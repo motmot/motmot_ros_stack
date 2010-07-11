@@ -59,10 +59,10 @@ typedef enum MyCameraPixelCodings {   CAM_IFACE_UNKNOWN=0,
 
 // globals (these are bad...)
 bool did_first_frame = false;
-int stride, width, height;
+int width, height;
 int use_pbo, use_shaders;
 GLuint pbo;
-size_t PBO_stride;
+size_t PBO_stride, stride;
 int tex_width, tex_height;
 GLuint textureId;
 double buf_wf, buf_hf;
@@ -314,7 +314,7 @@ void initialize_gl_texture(std::string encoding) {
   PBO_stride = PBO_stride*bytes_per_pixel; // FIXME this pads the rows more than necessary
 
   if (use_pbo) {
-    printf("image stride: %d, PBO stride: %d\n",stride,(int)PBO_stride);
+    printf("image stride: %d, PBO stride: %d\n",(int)stride,(int)PBO_stride);
   }
 
   buffer = (char*)malloc( tex_height*PBO_stride );
