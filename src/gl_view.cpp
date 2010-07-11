@@ -546,22 +546,22 @@ int main(int argc, char** argv) {
   glutInit(&argc, argv);
   ros::init(argc, argv, "raw_view", ros::init_options::AnonymousName);
   ros::NodeHandle nh;
-  if (nh.resolveName("image") == "/image") {
-    ROS_WARN("raw_view: image has not been remapped! Typical command-line usage:\n"
-             "\t$ ./raw_view image:=<image topic> [transport]");
+  if (nh.resolveName("image_raw") == "/image_raw") {
+    ROS_WARN("raw_view: image_raw has not been remapped! Typical command-line usage:\n"
+             "\t$ ./raw_view image_raw:=<image_raw topic> [transport]");
   }
 
   std::string transport = (argc > 1) ? argv[1] : "raw";
   image_transport::Subscriber sub_;
   image_transport::ImageTransport it(nh);
 
-  std::string topic = nh.resolveName("image");
+  std::string topic = nh.resolveName("image_raw");
   sub_ = it.subscribe(topic, 1, &image_cb, transport);
 
   glutInitWindowPosition(-1,-1);
   glutInitWindowSize(640, 480);
   glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE );
-  glutCreateWindow(nh.resolveName("image").c_str());
+  glutCreateWindow(nh.resolveName("image_raw").c_str());
 
   use_shaders=0;
 

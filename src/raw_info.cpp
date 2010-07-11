@@ -22,16 +22,16 @@ void image_cb(const sensor_msgs::ImageConstPtr& msg)
 int main(int argc, char** argv) {
   ros::init(argc, argv, "raw_info", ros::init_options::AnonymousName);
   ros::NodeHandle nh;
-  if (nh.resolveName("image") == "/image") {
+  if (nh.resolveName("image_raw") == "/image_raw") {
     ROS_WARN("raw_info: image has not been remapped! Typical command-line usage:\n"
-             "\t$ ./raw_info image:=<image topic> [transport]");
+             "\t$ ./raw_info image_raw:=<image_raw topic> [transport]");
   }
 
   std::string transport = (argc > 1) ? argv[1] : "raw";
   image_transport::Subscriber sub_;
   image_transport::ImageTransport it(nh);
 
-  std::string topic = nh.resolveName("image");
+  std::string topic = nh.resolveName("image_raw");
   sub_ = it.subscribe(topic, 1, &image_cb, transport);
 
   ros::spin();
