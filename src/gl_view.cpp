@@ -47,6 +47,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #  include <GL/glut.h>
 #endif
 
+#include "demosaic_frg.h"
+#include "demosaic_vrt.h"
+
 typedef enum MyCameraPixelCodings {   CAM_IFACE_UNKNOWN=0,
   CAM_IFACE_MONO8, /* pure monochrome (no Bayer) */
   CAM_IFACE_RGB8,
@@ -391,39 +394,6 @@ void display_pixels(void) {
     glutSwapBuffers();
 }
 
-char *textFileRead(const char *fn) {
-
-
-        FILE *fp;
-        char *content = NULL;
-
-        int count;
-        fp = fopen(fn, "rt");
-	if (fp == NULL) {
-	  return NULL;
-	}
-
-	fseek(fp, 0, SEEK_END);
-        count = ftell(fp);
-
-        fseek(fp, 0, SEEK_SET);
-
-        if (fn != NULL) {
-
-                if (fp != NULL) {
-
-
-                        if (count > 0) {
-                                content = (char *)malloc(sizeof(char) * (count+1));
-                                count = fread(content,sizeof(char),count,fp);
-                                content[count] = '\0';
-                        }
-                        fclose(fp);
-                }
-        }
-        return content;
-}
-
         void printShaderInfoLog(GLuint obj)
         {
             int infologLength = 0;
@@ -462,7 +432,7 @@ void setShaders() {
 
   const char * vv;
   const char * ff;
-                char *vs,*fs;
+                const char *vs,*fs;
                 GLint status;
                 GLhandleARB vertex_program,fragment_program;
                 GLint sourceSize, shader_texture_source;
@@ -470,14 +440,14 @@ void setShaders() {
                 vertex_program = glCreateShader(GL_VERTEX_SHADER);
                 fragment_program = glCreateShader(GL_FRAGMENT_SHADER);
 
-                vs = textFileRead("demosaic.vrt");
+                vs = demosaic_vrt;
                 if (vs==NULL) {
                   fprintf(stderr,"ERROR: failed to read vertex shader %s\n",
 			  "demosaic.vrt");
                   use_shaders = 0;
                   return;
                 }
-                fs = textFileRead("demosaic.frg");
+                fs = demosaic_frg;
                 if (fs==NULL) {
                   fprintf(stderr,"ERROR: failed to read fragment shader %s\n",
 			  "demosaic.frg");
@@ -490,8 +460,6 @@ void setShaders() {
 
                 glShaderSource(vertex_program, 1, &vv,NULL);
                 glShaderSource(fragment_program, 1, &ff,NULL);
-
-                free(vs);free(fs);
 
                 glCompileShader(vertex_program);
                 glGetShaderiv(vertex_program,GL_COMPILE_STATUS,&status);

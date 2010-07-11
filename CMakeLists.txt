@@ -31,7 +31,25 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 rosbuild_add_executable(camiface_ros_capture src/camiface_ros_capture.cpp)
 target_link_libraries(camiface_ros_capture cam_iface_mega)
 
-rosbuild_add_executable(gl_view src/gl_view.cpp)
+
+# include the C shaders directly in the executable program
+add_custom_command (
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/demosaic_frg.c
+  COMMAND python ${PROJECT_SOURCE_DIR}/shader2c.py
+                 ${PROJECT_SOURCE_DIR}/demosaic.frg
+                 ${CMAKE_CURRENT_BINARY_DIR}/demosaic_frg.c
+  DEPENDS ${PROJECT_SOURCE_DIR}/shader2c.py
+  )
+add_custom_command (
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/demosaic_vrt.c
+  COMMAND python ${PROJECT_SOURCE_DIR}/shader2c.py
+                 ${PROJECT_SOURCE_DIR}/demosaic.vrt
+                 ${CMAKE_CURRENT_BINARY_DIR}/demosaic_vrt.c
+  DEPENDS ${PROJECT_SOURCE_DIR}/shader2c.py
+  )
+include_directories( ${CMAKE_CURRENT_BINARY_DIR} )
+
+rosbuild_add_executable(gl_view src/gl_view.cpp ${CMAKE_CURRENT_BINARY_DIR}/demosaic_frg.c ${CMAKE_CURRENT_BINARY_DIR}/demosaic_vrt.c)
 target_link_libraries(gl_view GLEW glut)
 
 rosbuild_add_executable(raw_info src/raw_info.cpp)
