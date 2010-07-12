@@ -35,17 +35,17 @@ target_link_libraries(camiface_ros_capture cam_iface_mega)
 # include the C shaders directly in the executable program
 add_custom_command (
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/demosaic_frg.c
-  COMMAND python ${PROJECT_SOURCE_DIR}/shader2c.py
-                 ${PROJECT_SOURCE_DIR}/demosaic.frg
+  COMMAND python ${PROJECT_SOURCE_DIR}/tools/shader2c.py
+                 ${PROJECT_SOURCE_DIR}/src/demosaic.frg
                  ${CMAKE_CURRENT_BINARY_DIR}/demosaic_frg.c
-  DEPENDS ${PROJECT_SOURCE_DIR}/shader2c.py
+  DEPENDS ${PROJECT_SOURCE_DIR}/tools/shader2c.py
   )
 add_custom_command (
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/demosaic_vrt.c
-  COMMAND python ${PROJECT_SOURCE_DIR}/shader2c.py
-                 ${PROJECT_SOURCE_DIR}/demosaic.vrt
+  COMMAND python ${PROJECT_SOURCE_DIR}/tools/shader2c.py
+                 ${PROJECT_SOURCE_DIR}/src/demosaic.vrt
                  ${CMAKE_CURRENT_BINARY_DIR}/demosaic_vrt.c
-  DEPENDS ${PROJECT_SOURCE_DIR}/shader2c.py
+  DEPENDS ${PROJECT_SOURCE_DIR}/tools/shader2c.py
   )
 include_directories( ${CMAKE_CURRENT_BINARY_DIR} )
 
