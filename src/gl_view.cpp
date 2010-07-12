@@ -93,6 +93,28 @@ void init_coding_map()
 
 void image_cb(const sensor_msgs::ImageConstPtr& msg)
 {
+  if (did_first_frame) {
+    // check if we need to reset OpenGL texture stuff
+    if (stride != msg->step) {
+      did_first_frame = false;
+    }
+    if (width != msg->width) {
+      did_first_frame = false;
+    }
+    if (height != msg->height) {
+      did_first_frame = false;
+    }
+
+    // We will re-allocate OpenGL stuff. De-allocate old.
+    if (!did_first_frame) {
+      glDeleteTextures(1, &textureId);
+      if (use_pbo) {
+        glDeleteBuffers(1, &pbo);
+      }
+    }
+
+  }
+
   if (!did_first_frame) {
     fprintf(stdout,"Got first frame, setting up\n");
 
@@ -103,6 +125,8 @@ void image_cb(const sensor_msgs::ImageConstPtr& msg)
     stride = msg->step;
     width = msg->width; // XXX FIXME TODO: check when data != MONO8 or Bayer
     height = msg->height;
+
+    glGenTextures(1, &textureId);
 
     initialize_gl_texture(msg->encoding);
 
@@ -325,9 +349,6 @@ void initialize_gl_texture(std::string encoding) {
     fprintf(stderr,"ERROR: failed to allocate buffer\n");
     exit(1);
   }
-
-  int ncams=1;
-  glGenTextures(ncams, &textureId);
 
   glBindTexture(GL_TEXTURE_2D, textureId);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
