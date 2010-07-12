@@ -512,11 +512,11 @@ int main(int argc, char** argv) {
   init_coding_map();
 
   glutInit(&argc, argv);
-  ros::init(argc, argv, "raw_view", ros::init_options::AnonymousName);
+  ros::init(argc, argv, "gl_view", ros::init_options::AnonymousName);
   ros::NodeHandle nh;
   if (nh.resolveName("image_raw") == "/image_raw") {
-    ROS_WARN("raw_view: image_raw has not been remapped! Typical command-line usage:\n"
-             "\t$ ./raw_view image_raw:=<image_raw topic> [transport]");
+    ROS_WARN("gl_view: image_raw has not been remapped! Typical command-line usage:\n"
+             "\t$ ./gl_view image_raw:=<image_raw topic> [transport]");
   }
 
   std::string transport = (argc > 1) ? argv[1] : "raw";
