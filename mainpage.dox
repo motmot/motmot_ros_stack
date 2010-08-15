@@ -4,9 +4,16 @@
 
 \b camiface_ros is a ROS package for the libcamface camera library.
 
-<!-- 
-Provide an overview of your package.
--->
+The ROS package has three programs:
+
+* camiface_ros: publishes images from libcamiface
+
+* gl_view: an OpenGL based image viewer that seems faster and more
+  robust than the OpenCV viewers that ROS seems to advertise. Supports
+  scaling and Bayer demosaicing on the video card so your CPU doesn't
+  take the hit.
+
+* raw_info: prints information about an image topic
 
 This package depends on the camera_info_manager stack. This is
 apparently packaged with C Turtle, but so far camiface_ros has been

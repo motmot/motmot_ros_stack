@@ -13,3 +13,5 @@ programs:
   take the hit.
 
 * raw_info: prints information about an image topic
+
+See the mainpage.dox file for more information.
