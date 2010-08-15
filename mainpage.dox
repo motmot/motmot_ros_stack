@@ -2,12 +2,32 @@
 \mainpage
 \htmlinclude manifest.html
 
-\b camiface_ros is ... 
+\b camiface_ros is a ROS package for the libcamface camera library.
 
 <!-- 
 Provide an overview of your package.
 -->
 
+This package depends on the camera_info_manager stack. This is
+apparently packaged with C Turtle, but so far camiface_ros has been
+developed only with Box Turtle. Thus, the camera_info_manager stack
+must be installed into your ROS installation. It is located at
+https://code.ros.org/svn/ros-pkg/stacks/camera_drivers/trunk/camera_info_manager . Thus, to install it:
+
+<pre>
+cd ~/ros/stacks
+svn co https://code.ros.org/svn/ros-pkg/stacks/camera_drivers/trunk/camera_info_manager
+rosmake camera_info_manager
+</pre>
+
+Once camera_info_manager is installed, camiface_ros can be installed normally::
+
+<pre>
+cd ~/ros/stacks
+git clone git://github.com/motmot/camiface_ros.git
+rosdep install camiface_ros
+rosmake camiface_ros
+</pre>
 
 \section codeapi Code API
 
