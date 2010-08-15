@@ -235,7 +235,9 @@ const unsigned char* convert_pixels(const unsigned char* src,
 
     //FIXME: add switch (gl_data_format)
     if (!attempted_to_start_glsl_program) {
-      setShaders();
+      if (use_shaders) {
+	setShaders();
+      }
       if (use_shaders) {
 
         firstRed = glGetUniformLocation(glsl_program,"firstRed");
@@ -559,14 +561,17 @@ int main(int argc, char** argv) {
                       "GL_ARB_pixel_buffer_object")) {
     use_pbo=1;
 
-    if (GLEW_ARB_vertex_shader && GLEW_ARB_fragment_shader) {
-      printf("GLSL shaders present\n");
-      use_shaders=1;
-    }
-
   } else {
     printf("GLEW available, but no pixel buffer support -- not using PBO\n");
     use_pbo=0;
+
+  }
+
+  if (GLEW_ARB_vertex_shader && GLEW_ARB_fragment_shader) {
+    printf("GLSL shaders present\n");
+    use_shaders=1;
+  } else {
+    printf("no GLSL shaders present\n");
   }
 
   glutDisplayFunc(display_pixels); // set the display callback
