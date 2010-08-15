@@ -237,29 +237,29 @@ const unsigned char* convert_pixels(const unsigned char* src,
     if (!attempted_to_start_glsl_program) {
       if (use_shaders) {
 	setShaders();
-      }
-      if (use_shaders) {
+	if (use_shaders) {
 
-        firstRed = glGetUniformLocation(glsl_program,"firstRed");
-        switch(static_coding_map[src_coding]) {
-        case CAM_IFACE_MONO8_BAYER_BGGR:
-          glUniform2f(firstRed,0,0);
-          break;
-        case CAM_IFACE_MONO8_BAYER_RGGB:
-          glUniform2f(firstRed,1,1);
-          break;
-        case CAM_IFACE_MONO8_BAYER_GRBG:
-          glUniform2f(firstRed,0,1);
-          break;
-        case CAM_IFACE_MONO8_BAYER_GBRG:
-        default:
-          glUniform2f(firstRed,1,0);
-          break;
-        }
-      } else {
-        fprintf(stderr,"ERROR: Failed to start GLSL Bayer program\n");
+	  firstRed = glGetUniformLocation(glsl_program,"firstRed");
+	  switch(static_coding_map[src_coding]) {
+	  case CAM_IFACE_MONO8_BAYER_BGGR:
+	    glUniform2f(firstRed,0,0);
+	    break;
+	  case CAM_IFACE_MONO8_BAYER_RGGB:
+	    glUniform2f(firstRed,1,1);
+	    break;
+	  case CAM_IFACE_MONO8_BAYER_GRBG:
+	    glUniform2f(firstRed,0,1);
+	    break;
+	  case CAM_IFACE_MONO8_BAYER_GBRG:
+	  default:
+	    glUniform2f(firstRed,1,0);
+	    break;
+	  }
+	} else {
+	  fprintf(stderr,"ERROR: Failed to start GLSL Bayer program\n");
+	}
+	attempted_to_start_glsl_program=1;
       }
-      attempted_to_start_glsl_program=1;
     }
     do_copy();
     return dest;
