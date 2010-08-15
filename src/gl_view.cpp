@@ -98,10 +98,10 @@ void image_cb(const sensor_msgs::ImageConstPtr& msg)
     if (stride != msg->step) {
       did_first_frame = false;
     }
-    if (width != msg->width) {
+    if (width != (int)msg->width) {
       did_first_frame = false;
     }
-    if (height != msg->height) {
+    if (height != (int)msg->height) {
       did_first_frame = false;
     }
 
