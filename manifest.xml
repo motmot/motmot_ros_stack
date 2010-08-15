@@ -14,4 +14,6 @@
   <depend package="sensor_msgs"/>
   <depend package="image_transport"/>
   <depend package="camera_info_manager"/>
+
+  <rosdep name="libcamiface"/>
 </package>
