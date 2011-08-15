@@ -1,0 +1,22 @@
+<package>
+  <description brief="camiface_ros">
+
+     camiface_ros
+
+     Capture image streams using libcamiface for ROS.
+
+  </description>
+  <author>astraw</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/camiface_ros</url>
+  <depend package="roscpp"/>
+  <depend package="sensor_msgs"/>
+  <depend package="image_transport"/>
+  <depend package="camera_info_manager"/>
+
+  <rosdep name="libcamiface"/>
+  <rosdep name="opengl"/>
+  <rosdep name="glew"/>
+
+</package>

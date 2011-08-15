@@ -1,0 +1,53 @@
+/**
+\mainpage
+\htmlinclude manifest.html
+
+\b camiface_ros is a ROS package for the libcamface camera library.
+
+The ROS package has three programs:
+
+  - camiface_ros: publishes images from libcamiface
+
+  - gl_view: an OpenGL based image viewer that seems faster and more
+  robust than the OpenCV viewers that ROS seems to advertise. Supports
+  scaling and Bayer demosaicing on the video card so your CPU doesn't
+  do the work.
+
+  - raw_info: prints information about an image topic
+
+This package depends on the camera_info_manager stack. This is
+apparently packaged with C Turtle, but so far camiface_ros has been
+developed only with Box Turtle. Thus, the camera_info_manager stack
+must be installed into your ROS installation. It is located at
+https://code.ros.org/svn/ros-pkg/stacks/camera_drivers/trunk/camera_info_manager . Thus, to install it:
+
+<pre>
+cd ~/ros/stacks
+svn co https://code.ros.org/svn/ros-pkg/stacks/camera_drivers/trunk/camera_info_manager
+rosmake camera_info_manager
+</pre>
+
+Once camera_info_manager is installed, camiface_ros can be installed normally::
+
+<pre>
+cd ~/ros/stacks
+git clone git://github.com/motmot/camiface_ros.git
+rosdep install camiface_ros
+rosmake camiface_ros
+</pre>
+
+\section codeapi Code API
+
+<!--
+Provide links to specific auto-generated API documentation within your
+package that is of particular interest to a reader. Doxygen will
+document pretty much every part of your code, so do your best here to
+point the reader to the actual API.
+
+If your codebase is fairly large or has different sets of APIs, you
+should use the doxygen 'group' tag to keep these APIs together. For
+example, the roscpp documentation has 'libros' group.
+-->
+
+
+*/
