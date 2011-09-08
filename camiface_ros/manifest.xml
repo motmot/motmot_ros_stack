@@ -15,6 +15,7 @@
   <depend package="image_transport"/>
   <depend package="camera_info_manager"/>
 
+  <rosdep name="python_motmot_camiface"/>
   <rosdep name="opengl"/>
   <rosdep name="glew"/>
 
