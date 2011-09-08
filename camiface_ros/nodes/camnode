@@ -110,6 +110,7 @@ def query(args):
             mode_str = cam_iface.get_mode_string(device_num,this_mode_num)
             print '    %d: %s'%(this_mode_num,mode_str)
 
+        this_mode_num=0
         cam = cam_iface.Camera(device_num,
                                1,
                                this_mode_num)
@@ -119,7 +120,6 @@ def query(args):
         for i in range(n_trigger_modes):
             print '    %d: %s'%(i,cam.get_trigger_mode_string(i))
         print
-        
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
