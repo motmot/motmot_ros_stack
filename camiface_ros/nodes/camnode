@@ -25,6 +25,14 @@ def acquire(args):
     if args.mode_number is None:
         args.mode_number=0
 
+    if args.debug:
+        mode_string = cam_iface.get_mode_string(args.device_number,args.mode_number)
+        sys.stdout.write('opening device %d with %d buffers in mode %d ("%s")\n'%(
+            args.device_number,
+            args.num_buffers,
+            args.mode_number,
+            mode_string))
+
     cam = cam_iface.Camera(args.device_number,
                            args.num_buffers,
                            args.mode_number)
@@ -103,12 +111,12 @@ def query(args):
     num_devices = cam_iface.get_num_cameras()
     for device_num in range(num_devices):
         num_modes = cam_iface.get_num_modes(device_num)
-        print 'camera %d:'%(device_num,)
+        sys.stdout.write('camera %d:'%(device_num,)+'\n')
 
-        print '  Modes:'
+        sys.stdout.write('  Modes:'+'\n')
         for this_mode_num in range(num_modes):
             mode_str = cam_iface.get_mode_string(device_num,this_mode_num)
-            print '    %d: %s'%(this_mode_num,mode_str)
+            sys.stdout.write('    %d: %s'%(this_mode_num,mode_str)+'\n')
 
         this_mode_num=0
         cam = cam_iface.Camera(device_num,
@@ -116,10 +124,10 @@ def query(args):
                                this_mode_num)
 
         n_trigger_modes = cam.get_num_trigger_modes()
-        print '  Trigger modes:'
+        sys.stdout.write('  Trigger modes:'+'\n')
         for i in range(n_trigger_modes):
-            print '    %d: %s'%(i,cam.get_trigger_mode_string(i))
-        print
+            sys.stdout.write('    %d: %s'%(i,cam.get_trigger_mode_string(i))+'\n')
+        sys.stdout.write('\n')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
