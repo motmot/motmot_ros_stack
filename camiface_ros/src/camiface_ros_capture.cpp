@@ -52,7 +52,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 int main(int argc, char** argv)
 {
   CamContext *cc;
-  CameraInfoManager *cam_info_manager;
+  camera_info_manager::CameraInfoManager *cam_info_manager;
   sensor_msgs::CameraInfo cam_info;
   int num_buffers;
 
@@ -204,7 +204,7 @@ int main(int argc, char** argv)
   }
 
   ros::NodeHandle n;
-  cam_info_manager = new CameraInfoManager(n);
+  cam_info_manager = new camera_info_manager::CameraInfoManager(n);
 
   if (!cam_info_manager->setCameraName(ros::this_node::getNamespace())) {
     fprintf(stderr,"namespace %s not valid for camera_info_manager\n",ros::this_node::getNamespace().c_str());
