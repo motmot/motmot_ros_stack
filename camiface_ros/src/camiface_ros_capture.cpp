@@ -67,10 +67,11 @@ private:
   sensor_msgs::CameraInfo cam_info;
   image_transport::CameraPublisher publisher;
   camera_info_manager::CameraInfoManager *cam_info_manager;
+  bool _host_timestamp;
 };
 
 void CameraNode::camiface_config_callback(camiface_ros::CamIFaceConfig &config, uint32_t level) {
-  printf("config.use_host_timestamps: %d\n",config.use_host_timestamps);
+  _host_timestamp = config.use_host_timestamps;
 }
 
 CameraNode::CameraNode(int argc, char** argv) {
@@ -310,19 +311,21 @@ int CameraNode::run() {
     } else {
       _check_error();
 
-      double timestamp;
-      CamContext_get_last_timestamp(cc,&timestamp);
-      _check_error();
+      sensor_msgs::Image msg;
+      if (_host_timestamp) {
+	msg.header.stamp = ros::Time::now();
+      } else {
+	double timestamp;
+	CamContext_get_last_timestamp(cc,&timestamp);
+	_check_error();
+	msg.header.stamp = ros::Time(timestamp);
+      }
 
       unsigned long framenumber;
       CamContext_get_last_framenumber(cc,&framenumber);
       _check_error();
 
-
-      sensor_msgs::Image msg;
-
       msg.header.seq = framenumber;
-      msg.header.stamp = ros::Time(timestamp);
       msg.header.frame_id = "0";
 
       msg.height = height;
