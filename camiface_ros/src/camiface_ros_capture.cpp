@@ -82,7 +82,7 @@ CameraNode::CameraNode(int argc, char** argv) {
   if (ros::this_node::getNamespace() == "/") {
     fprintf(stderr,"[camiface_ros_capture] Started in the global namespace! This is probably wrong. Start camiface_ros_capture "
              "in the camera namespace.\nExample command-line usage:\n"
-             "\t$ ROS_NAMESPACE=my_camera rosrun camiface_ros camiface_ros_capture");
+             "\t$ ROS_NAMESPACE=my_camera rosrun camiface_ros camiface_ros_capture\n");
   }
 
   dynamic_reconfigure::Server<camiface_ros::CamIFaceConfig> server;
