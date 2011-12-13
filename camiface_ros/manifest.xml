@@ -25,5 +25,6 @@
   <rosdep name="libcamiface"/>
   <rosdep name="opengl"/>
   <rosdep name="glew"/>
+  <rosdep name="sdl"/>
 
 </package>

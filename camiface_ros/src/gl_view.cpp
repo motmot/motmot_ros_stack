@@ -38,13 +38,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
 
+#include <SDL/SDL.h>
 #include <GL/glew.h>
 #if defined(__APPLE__)
 #  include <OpenGL/gl.h>
-#  include <GLUT/glut.h>
 #else
 #  include <GL/gl.h>
-#  include <GL/glut.h>
 #endif
 
 #include "demosaic_frg.h"
@@ -143,7 +142,6 @@ void image_cb(const sensor_msgs::ImageConstPtr& msg)
   }
 
   upload_image_data_to_opengl(&msg->data[0], msg->encoding);
-  glutPostRedisplay(); /* trigger display redraw */
 }
 
 #define do_copy() {                                       \
@@ -414,7 +412,7 @@ void display_pixels(void) {
 
     glEnd();
 
-    glutSwapBuffers();
+    SDL_GL_SwapBuffers( );
 }
 
         void printShaderInfoLog(GLuint obj)
@@ -531,10 +529,123 @@ void setShaders() {
                 glUniform1i(shader_texture_source, 0);
 }
 
+static void quit_gl_view( int code )
+{
+  /*
+   * Quit SDL so we can release the fullscreen
+   * mode and restore the previous video settings,
+   * etc.
+   */
+  SDL_Quit( );
+
+  /* Exit program. */
+  exit( code );
+}
+
+void sdl_opengl_init() {
+  /* Information about the current video settings. */
+  const SDL_VideoInfo* info = NULL;
+  /* Dimensions of our window. */
+  int width = 0;
+  int height = 0;
+  /* Color depth in bits of our window. */
+  int bpp = 0;
+  /* Flags we will pass into SDL_SetVideoMode. */
+  int flags = 0;
+
+  /* First, initialize SDL's video subsystem. */
+  if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) {
+    /* Failed, exit. */
+    fprintf( stderr, "Video initialization failed: %s\n",
+             SDL_GetError( ) );
+    quit_gl_view( 1 );
+  }
+
+  /* Let's get some video information. */
+  info = SDL_GetVideoInfo( );
+
+  if( !info ) {
+    /* This should probably never happen. */
+    fprintf( stderr, "Video query failed: %s\n",
+             SDL_GetError( ) );
+    quit_gl_view( 1 );
+  }
+
+  /*
+   * Set our width/height to 640/480 (you would
+   * of course let the user decide this in a normal
+   * app). We get the bpp we will request from
+   * the display. On X11, VidMode can't change
+   * resolution, so this is probably being overly
+   * safe. Under Win32, ChangeDisplaySettings
+   * can change the bpp.
+   */
+  width = 640;
+  height = 480;
+  bpp = info->vfmt->BitsPerPixel;
+
+  /*  SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 8 );
+  SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 8 );
+  SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 8 );
+  SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, 16 ); */
+  SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
+
+  /*
+   * We want to request that SDL provide us
+   * with an OpenGL window, in a fullscreen
+   * video mode.
+   *
+   * EXERCISE:
+   * Make starting windowed an option, and
+   * handle the resize events properly with
+   * glViewport.
+   */
+  flags = SDL_OPENGL;
+
+  /*
+   * Set the video mode
+   */
+  if( SDL_SetVideoMode( width, height, bpp, flags ) == 0 ) {
+    /*
+     * This could happen for a variety of reasons,
+     * including DISPLAY not being set, the specified
+     * resolution not being available, etc.
+     */
+    fprintf( stderr, "Video mode set failed: %s\n",
+             SDL_GetError( ) );
+    quit_gl_view( 1 );
+  }
+}
+
+static void process_events( void )
+{
+  /* Our SDL event placeholder. */
+  SDL_Event event;
+
+  /* Grab all the events off the queue. */
+  while( SDL_PollEvent( &event ) ) {
+
+    switch( event.type ) {
+    case SDL_KEYDOWN:
+      /* Handle key presses. */
+      //      handle_key_down( &event.key.keysym );
+      break;
+    case SDL_QUIT:
+      /* Handle quit requests (like Ctrl-c). */
+      quit_gl_view( 0 );
+      break;
+    }
+
+  }
+
+}
+
+
 int main(int argc, char** argv) {
   init_coding_map();
 
-  glutInit(&argc, argv);
+  sdl_opengl_init();
+
   ros::init(argc, argv, "gl_view", ros::init_options::AnonymousName);
   ros::NodeHandle nh;
   if (nh.resolveName("image_raw") == "/image_raw") {
@@ -548,11 +659,6 @@ int main(int argc, char** argv) {
 
   std::string topic = nh.resolveName("image_raw");
   sub_ = it.subscribe(topic, 1, &image_cb, transport);
-
-  glutInitWindowPosition(-1,-1);
-  glutInitWindowSize(640, 480);
-  glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE );
-  glutCreateWindow(nh.resolveName("image_raw").c_str());
 
   use_shaders=0;
 
@@ -574,10 +680,14 @@ int main(int argc, char** argv) {
     printf("no GLSL shaders present\n");
   }
 
-  glutDisplayFunc(display_pixels); // set the display callback
-  glutIdleFunc(ros::spinOnce); // set the idle callback
+  // mainloop
+  while (1) {
+    process_events( );
 
-  glutMainLoop();
+    display_pixels();
+    ros::spinOnce();
+  }
+
   return 0;
 }
 
@@ -609,7 +719,7 @@ void upload_image_data_to_opengl(const unsigned char* raw_image_data,
       show_pixels = (unsigned char *)malloc( PBO_stride*height );
       if (show_pixels==NULL) {
         fprintf(stderr,"couldn't allocate memory in %s, line %d\n",__FILE__,__LINE__);
-        exit(1);
+        quit_gl_view(1);
       }
     }
 

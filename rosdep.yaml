@@ -4,3 +4,5 @@ python_motmot_camiface:
   ubuntu: python-motmot-camiface
 libcamiface:
   ubuntu: libcamiface-dev
+sdl:
+  ubuntu: libsdl1.2-dev
