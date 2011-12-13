@@ -36,6 +36,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sensor_msgs/image_encodings.h>
 #include <image_transport/image_transport.h>
 #include <camera_info_manager/camera_info_manager.h>
+#include <dynamic_reconfigure/server.h>
+
+#include <camiface_ros/CamIFaceConfig.h>
 
 #include <cam_iface.h>
 
@@ -54,6 +57,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 class CameraNode {
 public:
   CameraNode(int argc, char** argv);
+  void camiface_config_callback(camiface_ros::CamIFaceConfig &config, uint32_t level);
   int run();
 private:
   CamContext *cc;
@@ -65,6 +69,10 @@ private:
   camera_info_manager::CameraInfoManager *cam_info_manager;
 };
 
+void CameraNode::camiface_config_callback(camiface_ros::CamIFaceConfig &config, uint32_t level) {
+  printf("config.use_host_timestamps: %d\n",config.use_host_timestamps);
+}
+
 CameraNode::CameraNode(int argc, char** argv) {
   int num_buffers;
 
@@ -75,6 +83,12 @@ CameraNode::CameraNode(int argc, char** argv) {
              "in the camera namespace.\nExample command-line usage:\n"
              "\t$ ROS_NAMESPACE=my_camera rosrun camiface_ros camiface_ros_capture");
   }
+
+  dynamic_reconfigure::Server<camiface_ros::CamIFaceConfig> server;
+  dynamic_reconfigure::Server<camiface_ros::CamIFaceConfig>::CallbackType f;
+
+  f = boost::bind(&CameraNode::camiface_config_callback, boost::ref(this), _1, _2);
+  server.setCallback(f);
 
   cam_iface_startup_with_version_check();
   _check_error();
