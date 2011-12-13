@@ -53,8 +53,3 @@ rosbuild_add_executable(gl_view src/gl_view.cpp ${CMAKE_CURRENT_BINARY_DIR}/demo
 target_link_libraries(gl_view GLEW glut)
 
 rosbuild_add_executable(raw_info src/raw_info.cpp)
-
-# add dynamic reconfigure api
-rosbuild_find_ros_package(dynamic_reconfigure)
-include(${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake)
-gencfg()
