@@ -37,6 +37,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <image_transport/image_transport.h>
 #include <camera_info_manager/camera_info_manager.h>
 
+#include <boost/program_options.hpp>
+
 #include <cam_iface.h>
 
 #define _check_error() {                                                \
@@ -75,6 +77,29 @@ CameraNode::CameraNode(int argc, char** argv) {
     fprintf(stderr,"[camiface_ros_capture] Started in the global namespace! This is probably wrong. Start camiface_ros_capture "
              "in the camera namespace.\nExample command-line usage:\n"
              "\t$ ROS_NAMESPACE=my_camera rosrun camiface_ros camiface_ros_capture\n");
+  }
+
+  namespace po = boost::program_options;
+  // Declare the supported options.
+  po::options_description desc("Allowed options");
+  desc.add_options()
+    ("help", "produce help message")
+    ("host_timestamp", "use host computer timestamps (instead of camera driver timestamps)")
+    ;
+
+  po::variables_map vm;
+  po::store(po::parse_command_line(argc, argv, desc), vm);
+  po::notify(vm);
+
+  if (vm.count("help")) {
+    std::cout << desc << "\n";
+    exit(1);
+  }
+
+  _host_timestamp = false;
+  if (vm.count("host_timestamp")) {
+    _host_timestamp = true;
+    std::cout << "Host timestamps ON." << std::endl;
   }
 
   cam_iface_startup_with_version_check();

@@ -28,9 +28,12 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #rosbuild_link_boost(${PROJECT_NAME} thread)
 #rosbuild_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
+
+rosbuild_add_boost_directories()
+
 rosbuild_add_executable(camiface_ros_capture src/camiface_ros_capture.cpp)
 target_link_libraries(camiface_ros_capture cam_iface_mega)
-
+rosbuild_link_boost(camiface_ros_capture program_options)
 
 # include the C shaders directly in the executable program
 add_custom_command (

@@ -10,6 +10,12 @@
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/camiface_ros</url>
+
+  <export>
+    <cpp cflags="-I${prefix}/include `rosboost-cfg --cflags`"
+    lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lcamiface_ros `rosboost-cfg --lflags regex`"/>
+  </export>
+
   <depend package="roscpp"/>
   <depend package="sensor_msgs"/>
   <depend package="image_transport"/>
