@@ -49,11 +49,23 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     }                                                                   \
   }                                                                     \
 
-int main(int argc, char** argv)
-{
+
+// forward declaration
+class CameraNode {
+public:
+  CameraNode(int argc, char** argv);
+  int run();
+private:
   CamContext *cc;
-  camera_info_manager::CameraInfoManager *cam_info_manager;
+  int step;
+  std::string encoding;
+  int width, height;
   sensor_msgs::CameraInfo cam_info;
+  image_transport::CameraPublisher publisher;
+  camera_info_manager::CameraInfoManager *cam_info_manager;
+};
+
+CameraNode::CameraNode(int argc, char** argv) {
   int num_buffers;
 
   ros::init(argc, argv, "camiface_ros_capture");
@@ -136,7 +148,6 @@ int main(int argc, char** argv)
   _check_error();
 
   int left, top;
-  int width, height;
   CamContext_get_frame_roi(cc, &left, &top, &width, &height);
   _check_error();
 
@@ -214,7 +225,7 @@ int main(int argc, char** argv)
 
   // image transport interfaces
   image_transport::ImageTransport *transport = new image_transport::ImageTransport(n);
-  image_transport::CameraPublisher publisher = transport->advertiseCamera("image_raw", 1);
+  publisher = transport->advertiseCamera("image_raw", 1);
 
   CamContext_start_camera(cc);
   _check_error();
@@ -231,8 +242,6 @@ int main(int argc, char** argv)
   }
   printf("\n");
 
-  int step;
-  std::string encoding;
   switch (cc->coding) {
   case CAM_IFACE_MONO8_BAYER_BGGR:
     step = width;
@@ -262,7 +271,9 @@ int main(int argc, char** argv)
     printf("do not know encoding for this format\n");
     exit(1);
   }
+}
 
+int CameraNode::run() {
   printf("will now run forever. press Ctrl-C to interrupt\n");
 
   while (ros::ok())
@@ -316,4 +327,11 @@ int main(int argc, char** argv)
     }
     ros::spinOnce();
   }
+  return 0;
+}
+
+int main(int argc, char** argv)
+{
+  CameraNode* cn = new CameraNode(argc,argv);
+  return cn->run();
 }
