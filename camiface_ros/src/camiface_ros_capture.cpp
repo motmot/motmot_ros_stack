@@ -85,6 +85,7 @@ CameraNode::CameraNode(int argc, char** argv) {
   desc.add_options()
     ("help", "produce help message")
     ("host_timestamp", "use host computer timestamps (instead of camera driver timestamps)")
+    ("device", po::value<int>(), "device number to use")
     ;
 
   po::variables_map vm;
@@ -100,6 +101,11 @@ CameraNode::CameraNode(int argc, char** argv) {
   if (vm.count("host_timestamp")) {
     _host_timestamp = true;
     std::cout << "Host timestamps ON." << std::endl;
+  }
+
+  int device_number = -1;
+  if (vm.count("device")) {
+    device_number = vm["device"].as<int>();
   }
 
   cam_iface_startup_with_version_check();
@@ -120,8 +126,6 @@ CameraNode::CameraNode(int argc, char** argv) {
   }
   _check_error();
 
-  int device_number = -1;
-
   printf("%d camera(s) found.\n",ncams);
   for (int i=0; i<ncams; i++) {
     Camwire_id cam_info_struct;
@@ -131,7 +135,9 @@ CameraNode::CameraNode(int argc, char** argv) {
       cam_iface_clear_error();
       continue;
     }
-    device_number = i;
+    if (device_number==-1) {
+      device_number = i;
+    }
     _check_error();
     printf("  camera %d:\n",i);
     printf("    vendor: %s\n",cam_info_struct.vendor);
