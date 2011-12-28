@@ -356,6 +356,8 @@ int CameraNode::run() {
       cam_info.header.stamp = msg.header.stamp;
       cam_info.header.seq = msg.header.seq;
       cam_info.header.frame_id = msg.header.frame_id;
+      cam_info.height = height;
+      cam_info.width = width;
 
       publisher.publish(msg, cam_info);
     }
