@@ -51,6 +51,21 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     }                                                                   \
   }                                                                     \
 
+std::string make_safe_name(std::string instr) {
+  std::string outstr;
+  const char* valid="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_";
+  std::string mychar;
+  for (std::string::const_iterator i=instr.begin();
+       i < instr.end(); i++ ) {
+    mychar = *i;
+    if ( mychar.find_first_of(valid)!=std::string::npos) {
+      outstr += mychar;
+    } else {
+      outstr += "_";
+    }
+  }
+  return outstr;
+}
 
 // forward declaration
 class CameraNode {
@@ -126,6 +141,7 @@ CameraNode::CameraNode(int argc, char** argv) {
   }
   _check_error();
 
+  std::vector<std::string> safe_names;
   printf("%d camera(s) found.\n",ncams);
   for (int i=0; i<ncams; i++) {
     Camwire_id cam_info_struct;
@@ -143,6 +159,9 @@ CameraNode::CameraNode(int argc, char** argv) {
     printf("    vendor: %s\n",cam_info_struct.vendor);
     printf("    model: %s\n",cam_info_struct.model);
     printf("    chip: %s\n",cam_info_struct.chip);
+    std::string sn = make_safe_name(cam_info_struct.chip);
+    safe_names.push_back( sn );
+    printf("    safe name: %s\n",sn.c_str());
   }
 
   if (device_number == -1) {
@@ -249,7 +268,7 @@ CameraNode::CameraNode(int argc, char** argv) {
   ros::NodeHandle n;
   cam_info_manager = new camera_info_manager::CameraInfoManager(n);
 
-  if (!cam_info_manager->setCameraName(ros::this_node::getNamespace())) {
+  if (!cam_info_manager->setCameraName(safe_names.at(device_number))) {
     fprintf(stderr,"namespace %s not valid for camera_info_manager\n",ros::this_node::getNamespace().c_str());
   }
 
