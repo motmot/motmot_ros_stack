@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 2.4.6)
 include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
+set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/CMakeModules )
 
 # Set the build type.  Options are:
 #  Coverage       : w/ debug symbols, w/o optimization, w/ code-coverage
@@ -17,6 +18,7 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 FIND_PACKAGE(SDL)
+FIND_PACKAGE(camiface)
 
 #uncomment if you have defined messages
 #rosbuild_genmsg()
@@ -34,7 +36,8 @@ FIND_PACKAGE(SDL)
 rosbuild_add_boost_directories()
 
 rosbuild_add_executable(camiface_ros_capture src/camiface_ros_capture.cpp)
-target_link_libraries(camiface_ros_capture cam_iface_mega)
+include_directories(${CAMIFACE_INCLUDE_PATH})
+target_link_libraries(camiface_ros_capture ${CAMIFACE_LIBRARY})
 rosbuild_link_boost(camiface_ros_capture program_options)
 
 # include the C shaders directly in the executable program

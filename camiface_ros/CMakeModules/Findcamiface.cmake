@@ -1,0 +1,16 @@
+INCLUDE(FindPackageHandleStandardArgs)
+
+FIND_PATH(CAMIFACE_INCLUDE_PATH cam_iface.h
+  "$ENV{CAMIFACE_INCLUDE_PATH}"
+  /opt/pylon/camiface/library/CPP/include
+  /opt/pylon/include/camiface
+)
+
+FIND_LIBRARY(CAMIFACE_LIBRARY cam_iface_mega
+  "$ENV{CAMIFACE_LIBRARY}"
+  /usr/lib
+)
+
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(CAMIFACE DEFAULT_MSG
+  CAMIFACE_INCLUDE_PATH
+  CAMIFACE_LIBRARY)
