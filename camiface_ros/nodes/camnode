@@ -59,7 +59,7 @@ def acquire(args):
                     anonymous=True, # allow multiple instances to run
                     disable_signals=True,
                     )
-    publisher = rospy.Publisher('image_raw',
+    publisher = rospy.Publisher('~image_raw',
                                 Image,
                                 tcp_nodelay=True,
                                 )
