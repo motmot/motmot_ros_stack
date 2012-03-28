@@ -10,35 +10,65 @@ import roslib; roslib.load_manifest('camiface_ros')
 import rospy
 from sensor_msgs.msg import Image
 
+def argparse_or_param(args, param_name, default=None):
+    aval = getattr(args, param_name)
+    pval = rospy.get_param('~%s' % param_name, None)
+    if aval is None:
+        val = pval if pval != None else default
+    else:
+        val = default
+    return val
+
 def acquire(args):
+    rospy.init_node('camnode',
+                    anonymous=True, # allow multiple instances to run
+                    disable_signals=True,
+                    )
+    publisher = rospy.Publisher('~image_raw',
+                                Image,
+                                tcp_nodelay=True,
+                                )
+
     num_devices = cam_iface.get_num_cameras()
-    if args.device_number is None:
-        args.device_number = num_devices - 1
+    device_number = argparse_or_param(args, 'device_number', num_devices - 1)
+    device_guid = argparse_or_param(args, 'device_guid')
+    mode_number = argparse_or_param(args, 'mode_number')
+    num_buffers = argparse_or_param(args, 'num_buffers', 30)
+    trigger_mode = argparse_or_param(args, 'trigger_mode')
 
-    num_modes = cam_iface.get_num_modes(args.device_number)
+    if device_guid:
+        for i in range(num_devices):
+            guid = cam_iface.get_camera_info(i)[2]
+            #camiface guid is a string, even if rosparam guesses an int
+            if guid == str(device_guid):
+                device_number = i
+                if args.debug:
+                  sys.stdout.write('Found device %d by guid %s\n' % (i, device_guid))
+                break
 
+    num_modes = cam_iface.get_num_modes(device_number)
     for this_mode_num in range(num_modes):
-        mode_str = cam_iface.get_mode_string(args.device_number,this_mode_num)
-        if args.mode_number is None:
+        mode_str = cam_iface.get_mode_string(device_number,this_mode_num)
+        if mode_number is None:
             if 'DC1394_VIDEO_MODE_FORMAT7_0' in mode_str and 'MONO8' in mode_str:
-                args.mode_number=this_mode_num
-    if args.mode_number is None:
-        args.mode_number=0
+                mode_number = this_mode_num
+    if mode_number is None:
+        mode_number = 0
 
     if args.debug:
-        mode_string = cam_iface.get_mode_string(args.device_number,args.mode_number)
-        sys.stdout.write('opening device %d with %d buffers in mode %d ("%s")\n'%(
-            args.device_number,
-            args.num_buffers,
-            args.mode_number,
+        mode_string = cam_iface.get_mode_string(device_number, mode_number)
+        sys.stdout.write('Opening device %d with %d buffers in mode %d ("%s")\n'%(
+            device_number,
+            num_buffers,
+            mode_number,
             mode_string))
 
-    cam = cam_iface.Camera(args.device_number,
-                           args.num_buffers,
-                           args.mode_number)
+    cam = cam_iface.Camera(device_number,
+                           num_buffers,
+                           mode_number)
 
-    if args.trigger_mode is not None:
-        cam.set_trigger_mode_number( args.trigger_mode )
+    if trigger_mode is not None:
+        cam.set_trigger_mode_number( trigger_mode )
 
     pixel_format = cam.get_pixel_coding()
     if pixel_format == 'MONO8':
@@ -53,16 +83,6 @@ def acquire(args):
         encoding = 'bayer_grbg8'
     else:
         raise ValueError('unknown pixel format "%s"'%pixel_format)
-
-
-    rospy.init_node('camnode',
-                    anonymous=True, # allow multiple instances to run
-                    disable_signals=True,
-                    )
-    publisher = rospy.Publisher('~image_raw',
-                                Image,
-                                tcp_nodelay=True,
-                                )
 
     cam.start_camera()
     while 1:
@@ -84,25 +104,24 @@ def acquire(args):
         timestamp = cam.get_last_timestamp()
         framenumber = cam.get_last_framenumber()
 
-        if 1:
-            msg = Image()
-            msg.header.seq=framenumber
-            if timestamp is not None:
-                msg.header.stamp=rospy.Time.from_sec(timestamp)
-            else:
-                msg.header.stamp=rospy.Time.from_sec(0.0)
-            msg.header.frame_id = "0"
+        msg = Image()
+        msg.header.seq=framenumber
+        if timestamp is not None:
+            msg.header.stamp=rospy.Time.from_sec(timestamp)
+        else:
+            msg.header.stamp=rospy.Time.from_sec(0.0)
+        msg.header.frame_id = "0"
 
-            npbuf = np.array(buf)
-            (height,width) = npbuf.shape
+        npbuf = np.array(buf)
+        (height,width) = npbuf.shape
 
-            msg.height = height
-            msg.width = width
-            msg.encoding = encoding
-            msg.step = width
-            msg.data = npbuf.tostring() # let numpy convert to string
+        msg.height = height
+        msg.width = width
+        msg.encoding = encoding
+        msg.step = width
+        msg.data = npbuf.tostring() # let numpy convert to string
 
-            publisher.publish(msg)
+        publisher.publish(msg)
 
         if args.debug:
             sys.stdout.write('.'); sys.stdout.flush()
@@ -111,7 +130,7 @@ def query(args):
     num_devices = cam_iface.get_num_cameras()
     for device_num in range(num_devices):
         num_modes = cam_iface.get_num_modes(device_num)
-        sys.stdout.write('camera %d:'%(device_num,)+'\n')
+        sys.stdout.write('Camera %d:'%(device_num,)+'\n')
 
         sys.stdout.write('  Modes:'+'\n')
         for this_mode_num in range(num_modes):
@@ -126,8 +145,13 @@ def query(args):
         n_trigger_modes = cam.get_num_trigger_modes()
         sys.stdout.write('  Trigger modes:'+'\n')
         for i in range(n_trigger_modes):
-            sys.stdout.write('    %d: %s'%(i,cam.get_trigger_mode_string(i))+'\n')
+            sys.stdout.write('    %2d: %s'%(i,cam.get_trigger_mode_string(i))+'\n')
         sys.stdout.write('\n')
+
+        sys.stdout.write('  Details:'+'\n')
+        sys.stdout.write('    vendor: %s\n'\
+                         '    model : %s\n'\
+                         '    guid  : %s\n' % cam_iface.get_camera_info(device_num))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -137,6 +161,8 @@ if __name__ == '__main__':
 
     parser_acquire.add_argument(
         '--device_number', type=int, help='the number of the camera')
+    parser_acquire.add_argument(
+        '--device_guid', type=str, help='the guid of the camera')
     parser_acquire.add_argument(
         '--mode_number', type=int, help='the mode number')
     parser_acquire.add_argument(
