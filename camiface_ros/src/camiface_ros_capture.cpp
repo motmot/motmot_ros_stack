@@ -1,5 +1,5 @@
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /*
-
 Copyright (c) 2004-2010, California Institute of Technology.
 All rights reserved.
 
@@ -26,8 +26,7 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
- */
+*/
 
 
 #include <ros/ros.h>
@@ -36,8 +35,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sensor_msgs/image_encodings.h>
 #include <image_transport/image_transport.h>
 #include <camera_info_manager/camera_info_manager.h>
-
-#include <boost/program_options.hpp>
 
 #include <cam_iface.h>
 
@@ -67,261 +64,259 @@ std::string make_safe_name(std::string instr) {
   return outstr;
 }
 
-// forward declaration
 class CameraNode {
 public:
-  CameraNode(int argc, char** argv);
-  int run();
+    CameraNode(int argc, char** argv);
+    int run();
 private:
-  CamContext *cc;
-  int step;
-  std::string encoding;
-  int width, height;
-  sensor_msgs::CameraInfo cam_info;
-  image_transport::CameraPublisher publisher;
-  camera_info_manager::CameraInfoManager *cam_info_manager;
-  bool _host_timestamp;
+    CamContext *cc;
+    int step;
+    std::string encoding;
+    int width, height;
+    sensor_msgs::CameraInfo cam_info;
+    image_transport::CameraPublisher publisher;
+    camera_info_manager::CameraInfoManager *cam_info_manager;
+    bool _host_timestamp;
+    int _device_number;
 };
 
-CameraNode::CameraNode(int argc, char** argv) {
-  int num_buffers;
+CameraNode::CameraNode(int argc, char** argv) :
+    _host_timestamp(false)
+{
+    int num_buffers;
 
-  ros::init(argc, argv, "camiface_ros_capture");
+    ros::init(argc, argv, "camnode", ros::init_options::AnonymousName);
+    ros::NodeHandle _node;
 
-  if (ros::this_node::getNamespace() == "/") {
-    fprintf(stderr,"[camiface_ros_capture] Started in the global namespace! This is probably wrong. Start camiface_ros_capture "
-             "in the camera namespace.\nExample command-line usage:\n"
-             "\t$ ROS_NAMESPACE=my_camera rosrun camiface_ros camiface_ros_capture\n");
-  }
+    ros::param::get ("host_timestamp", _host_timestamp);
+    if (_host_timestamp)
+        ROS_INFO("Host timestamps ON");
 
-  namespace po = boost::program_options;
-  // Declare the supported options.
-  po::options_description desc("Allowed options");
-  desc.add_options()
-    ("help", "produce help message")
-    ("host_timestamp", "use host computer timestamps (instead of camera driver timestamps)")
-    ("device", po::value<int>(), "device number to use")
-    ;
+    int device_number = -1;
+    ros::param::get (ros::this_node::getName() + "/device_number", device_number);
 
-  po::variables_map vm;
-  po::store(po::parse_command_line(argc, argv, desc), vm);
-  po::notify(vm);
+    std::string device_guid;
+    ros::param::get (ros::this_node::getName() + "/device_guid", device_guid);
 
-  if (vm.count("help")) {
-    std::cout << desc << "\n";
-    exit(1);
-  }
+    int device_guid_int = -1;
+    ros::param::get (ros::this_node::getName() + "/device_guid", device_guid_int);
 
-  _host_timestamp = false;
-  if (vm.count("host_timestamp")) {
-    _host_timestamp = true;
-    std::cout << "Host timestamps ON." << std::endl;
-  }
+    std::string device_trigger;
+    ros::param::get (ros::this_node::getName() + "/device_trigger", device_trigger);
 
-  int device_number = -1;
-  if (vm.count("device")) {
-    device_number = vm["device"].as<int>();
-  }
 
-  cam_iface_startup_with_version_check();
-  _check_error();
+    if (device_guid_int != -1 && device_guid.empty()) {
+        ROS_WARN("stupid ros weakly typed parameter server - converting guid to string");
+        std::stringstream out;
+        out << device_guid_int;
+        device_guid = out.str();
+    }
 
-  printf("using driver %s\n",cam_iface_get_driver_name());
-  int ncams = cam_iface_get_num_cameras();
-  _check_error();
-
-  if (ncams<1) {
-
-    printf("no cameras found, will now exit\n");
-
-    cam_iface_shutdown();
+    cam_iface_startup_with_version_check();
     _check_error();
 
-    exit(1);
-  }
-  _check_error();
+    ROS_DEBUG("using driver %s",cam_iface_get_driver_name());
 
-  std::vector<std::string> safe_names;
-  printf("%d camera(s) found.\n",ncams);
-  for (int i=0; i<ncams; i++) {
-    Camwire_id cam_info_struct;
-    cam_iface_get_camera_info(i, &cam_info_struct);
-    if (cam_iface_have_error()==CAM_IFACE_CAMERA_NOT_AVAILABLE_ERROR) {
-      printf("  camera %d: (not available)\n",i);
-      cam_iface_clear_error();
-      continue;
-    }
-    if (device_number==-1) {
-      device_number = i;
-    }
-    _check_error();
-    printf("  camera %d:\n",i);
-    printf("    vendor: %s\n",cam_info_struct.vendor);
-    printf("    model: %s\n",cam_info_struct.model);
-    printf("    chip: %s\n",cam_info_struct.chip);
-    std::string sn = make_safe_name(cam_info_struct.chip);
-    safe_names.push_back( sn );
-    printf("    safe name: %s\n",sn.c_str());
-  }
-
-  if (device_number == -1) {
-    fprintf(stderr,"No cameras available.\n");
-    exit(1);
-  }
-
-  printf("choosing camera %d\n",device_number);
-
-  int num_modes;
-  cam_iface_get_num_modes(device_number, &num_modes);
-  _check_error();
-
-  printf("%d mode(s) available:\n",num_modes);
-
-  int mode_number = 0;
-
-  for (int i=0; i<num_modes; i++) {
-    char mode_string[255];
-    cam_iface_get_mode_string(device_number,i,mode_string,255);
-    if (strstr(mode_string,"FORMAT7_0")!=NULL) {
-      if (strstr(mode_string,"MONO8")!=NULL) {
-        // pick this mode
-        mode_number = i;
-      }
-    }
-    printf("  %d: %s\n",i,mode_string);
-  }
-
-  printf("Choosing mode %d\n",mode_number);
-
-  num_buffers = 5;
-  cam_iface_constructor_func_t new_CamContext = cam_iface_get_constructor_func(device_number);
-  cc = new_CamContext(device_number,num_buffers,mode_number);
-  _check_error();
-
-  int left, top;
-  CamContext_get_frame_roi(cc, &left, &top, &width, &height);
-  _check_error();
-
-  CamContext_get_num_framebuffers(cc,&num_buffers);
-  printf("allocated %d buffers\n",num_buffers);
-
-  int num_props;
-  CamContext_get_num_camera_properties(cc,&num_props);
-  _check_error();
-
-  printf("%d camera properties: \n",num_props);
-
-  for (int i=0; i<num_props; i++) {
-    CameraPropertyInfo cam_props;
-    CamContext_get_camera_property_info(cc,i,&cam_props);
+    int ncams = cam_iface_get_num_cameras();
     _check_error();
 
-    if (strcmp(cam_props.name,"white balance")==0) {
-      fprintf(stderr,"WARNING: ignoring white balance property\n");
-      continue;
+    if (ncams<1) {
+        ROS_WARN("no cameras found, will now exit");
+        cam_iface_shutdown();
+        _check_error();
+        exit(1);
     }
 
-    printf("  %s: ",cam_props.name);
-    fflush(stdout);
+    std::vector<std::string> safe_names;
+    ROS_INFO("%d camera(s) found",ncams);
+    for (int i=0; i<ncams; i++) {
+        Camwire_id cam_info_struct;
+        cam_iface_get_camera_info(i, &cam_info_struct);
+        if (cam_iface_have_error()==CAM_IFACE_CAMERA_NOT_AVAILABLE_ERROR) {
+            ROS_WARN("camera %d: (not available)",i);
+            cam_iface_clear_error();
+            continue;
+        }
 
-    if (cam_props.is_present) {
-      if (cam_props.available) {
-	if (cam_props.absolute_capable) {
-	  if (cam_props.absolute_control_mode) {
-	    printf("(absolute capable, on) " );
-	  } else {
-	    printf("(absolute capable, off) " );
-	  }
-	  fflush(stdout);
-	}
-	if (cam_props.readout_capable) {
-	  if (cam_props.has_manual_mode) {
-            long prop_value;
-            int prop_auto;
-	    CamContext_get_camera_property(cc,i,&prop_value,&prop_auto);
-	    _check_error();
-	    printf("%ld\n",prop_value);
-	  } else {
-	    /* Firefly2 temperature won't be read out. */
-	    printf("no manual mode, won't read out. Original value: %ld\n",cam_props.original_value);
-	  }
-	} else {
-	  printf("not readout capable");
-	}
-      } else {
-	printf("present, but not available\n");
-      }
-    } else {
-      printf("not present\n");
+        _check_error();
+        ROS_INFO("camera %d:",i);
+        ROS_INFO("  vendor: %s",cam_info_struct.vendor);
+        ROS_INFO("  model: %s",cam_info_struct.model);
+        ROS_INFO("  chip: %s",cam_info_struct.chip);
+        std::string sn = make_safe_name(cam_info_struct.chip);
+        safe_names.push_back( sn );
+        ROS_INFO("  safe name: %s",sn.c_str());
+
+        if (device_number == i) {
+            _device_number = i;
+            ROS_INFO("using user supplied device_number");
+        } else if (device_guid.length() && (sn == device_guid)) {
+            _device_number = i;
+            ROS_INFO("using user supplied device_gui");
+        }
     }
-  }
 
-  int buffer_size;
-  CamContext_get_buffer_size(cc,&buffer_size);
-  _check_error();
+    if (safe_names.empty()) {
+        ROS_WARN("No cameras available");
+        exit(1);
+    }
 
-  if (buffer_size == 0) {
-    fprintf(stderr,"buffer size was 0 in %s, line %d\n",__FILE__,__LINE__);
-    exit(1);
-  }
+    ROS_INFO("choosing camera %d", _device_number);
 
-  ros::NodeHandle n;
-  cam_info_manager = new camera_info_manager::CameraInfoManager(n);
+    int num_modes;
+    cam_iface_get_num_modes(_device_number, &num_modes);
+    _check_error();
 
-  if (!cam_info_manager->setCameraName(safe_names.at(device_number))) {
-    fprintf(stderr,"namespace %s not valid for camera_info_manager\n",ros::this_node::getNamespace().c_str());
-  }
+    ROS_DEBUG("%d mode(s) available:\n",num_modes);
 
-  // topic is "image_raw", with queue size of 1
+    int mode_number = 0;
+    for (int i=0; i<num_modes; i++) {
+        char mode_string[255];
+        cam_iface_get_mode_string(_device_number,i,mode_string,255);
+        if (strstr(mode_string,"FORMAT7_0")!=NULL) {
+            if (strstr(mode_string,"MONO8")!=NULL) {
+                // pick this mode
+                mode_number = i;
+            }
+        }
+        ROS_DEBUG("  %d: %s",i,mode_string);
+    }
 
-  // image transport interfaces
-  image_transport::ImageTransport *transport = new image_transport::ImageTransport(n);
-  publisher = transport->advertiseCamera("image_raw", 1);
+    ROS_INFO("choosing mode %d",mode_number);
 
-  CamContext_start_camera(cc);
-  _check_error();
+    num_buffers = 5;
+    cam_iface_constructor_func_t new_CamContext = cam_iface_get_constructor_func(_device_number);
+    cc = new_CamContext(_device_number,num_buffers,mode_number);
+    _check_error();
 
-  int num_trigger_modes;
-  CamContext_get_num_trigger_modes( cc, &num_trigger_modes );
-  _check_error();
+    int left, top;
+    CamContext_get_frame_roi(cc, &left, &top, &width, &height);
+    _check_error();
 
-  printf("trigger modes:\n");
-  for (int i =0; i<num_trigger_modes; i++) {
-    char mode_string[255];
-    CamContext_get_trigger_mode_string( cc, i, mode_string, 255 );
-    printf("  %d: %s\n",i,mode_string);
-  }
-  printf("\n");
+    CamContext_get_num_framebuffers(cc,&num_buffers);
+    ROS_DEBUG("allocated %d buffers",num_buffers);
 
-  switch (cc->coding) {
-  case CAM_IFACE_MONO8_BAYER_BGGR:
-    step = width;
-    encoding = sensor_msgs::image_encodings::BAYER_BGGR8;
-    break;
-  case CAM_IFACE_MONO8_BAYER_RGGB:
-    step = width;
-    encoding = sensor_msgs::image_encodings::BAYER_RGGB8;
-    break;
-  case CAM_IFACE_MONO8_BAYER_GRBG:
-    step = width;
-    encoding = sensor_msgs::image_encodings::BAYER_GRBG8;
-    break;
-  case CAM_IFACE_MONO8_BAYER_GBRG:
-    step = width;
-    encoding = sensor_msgs::image_encodings::BAYER_GBRG8;
-    break;
-  case CAM_IFACE_MONO8:
-    step = width;
-    encoding = sensor_msgs::image_encodings::MONO8;
-    break;
-  case CAM_IFACE_RGB8:
-    step = width*3;
-    encoding = sensor_msgs::image_encodings::RGB8;
-    break;
-  default:
-    printf("do not know encoding for this format\n");
-    exit(1);
-  }
+    int num_props;
+    CamContext_get_num_camera_properties(cc,&num_props);
+    _check_error();
+
+    ROS_DEBUG("%d camera properties:",num_props);
+
+    for (int i=0; i<num_props; i++) {
+        CameraPropertyInfo cam_props;
+        CamContext_get_camera_property_info(cc,i,&cam_props);
+        _check_error();
+
+        if (strcmp(cam_props.name,"white balance")==0) {
+            ROS_WARN("WARNING: ignoring white balance property");
+            continue;
+        }
+
+        ROS_DEBUG("  %s: ",cam_props.name);
+
+        if (cam_props.is_present) {
+            if (cam_props.available) {
+                if (cam_props.absolute_capable) {
+                    if (cam_props.absolute_control_mode) {
+                        ROS_DEBUG("(absolute capable, on) " );
+                    } else {
+                        ROS_DEBUG("(absolute capable, off) " );
+                    }
+
+                }
+                if (cam_props.readout_capable) {
+                    if (cam_props.has_manual_mode) {
+                        long prop_value;
+                        int prop_auto;
+                        CamContext_get_camera_property(cc,i,&prop_value,&prop_auto);
+                        _check_error();
+                        ROS_DEBUG("%ld",prop_value);
+                    } else {
+                        /* Firefly2 temperature won't be read out. */
+                        ROS_DEBUG("no manual mode, won't read out. Original value: %ld",cam_props.original_value);
+                    }
+                } else {
+                        ROS_DEBUG("not readout capable");
+                }
+            } else {
+                ROS_DEBUG("present, but not available");
+            }
+        } else {
+            ROS_DEBUG("not present");
+        }
+    }
+
+    int buffer_size;
+    CamContext_get_buffer_size(cc,&buffer_size);
+    _check_error();
+
+    if (buffer_size == 0) {
+        ROS_FATAL("buffer size was 0");
+        exit(1);
+    }
+
+    cam_info_manager = new camera_info_manager::CameraInfoManager(_node);
+    if (!cam_info_manager->setCameraName(safe_names.at(_device_number))) {
+        ROS_WARN("ROS name %s not valid for camera_info_manager\n",ros::this_node::getName().c_str());
+    }
+
+    // topic is "image_raw", with queue size of 1
+    // image transport interfaces
+    image_transport::ImageTransport *transport = new image_transport::ImageTransport(_node);
+    publisher = transport->advertiseCamera(ros::this_node::getName() + "/image_raw", 1);
+
+    int num_trigger_modes;
+    CamContext_get_num_trigger_modes( cc, &num_trigger_modes );
+    _check_error();
+
+    ROS_DEBUG("trigger modes:");
+    int trigger_mode_number = 0;
+    for (int i =0; i<num_trigger_modes; i++) {
+        char mode[255];
+        CamContext_get_trigger_mode_string( cc, i, mode, 255 );
+        ROS_DEBUG("  %s (#%d)", mode, i);
+
+        std::string mode_string(mode);
+        if (device_trigger == mode_string)
+            trigger_mode_number = i;
+    }
+
+    ROS_INFO("choosing trigger mode %d", trigger_mode_number);
+    CamContext_set_trigger_mode_number( cc, trigger_mode_number );
+    _check_error();
+
+    CamContext_start_camera(cc);
+    _check_error();
+
+    switch (cc->coding) {
+        case CAM_IFACE_MONO8_BAYER_BGGR:
+            step = width;
+            encoding = sensor_msgs::image_encodings::BAYER_BGGR8;
+            break;
+        case CAM_IFACE_MONO8_BAYER_RGGB:
+            step = width;
+            encoding = sensor_msgs::image_encodings::BAYER_RGGB8;
+            break;
+        case CAM_IFACE_MONO8_BAYER_GRBG:
+            step = width;
+            encoding = sensor_msgs::image_encodings::BAYER_GRBG8;
+            break;
+        case CAM_IFACE_MONO8_BAYER_GBRG:
+            step = width;
+            encoding = sensor_msgs::image_encodings::BAYER_GBRG8;
+            break;
+        case CAM_IFACE_MONO8:
+            step = width;
+            encoding = sensor_msgs::image_encodings::MONO8;
+            break;
+        case CAM_IFACE_RGB8:
+            step = width*3;
+            encoding = sensor_msgs::image_encodings::RGB8;
+            break;
+        default:
+            ROS_FATAL("do not know encoding for this format");
+            exit(1);
+    }
 }
 
 int CameraNode::run() {
