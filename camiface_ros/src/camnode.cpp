@@ -317,76 +317,78 @@ CameraNode::CameraNode(int argc, char** argv) :
     }
 }
 
-int CameraNode::run() {
+int CameraNode::run()
+{
     bool got_frame = false;
-  while (ros::ok())
-  {
-    std::vector<uint8_t> data(step*height);
+    while (ros::ok()) {
+        std::vector<uint8_t> data(step*height);
 
-    CamContext_grab_next_frame_blocking(cc,&data[0],-1.0f); // never timeout
+        CamContext_grab_next_frame_blocking(cc,&data[0],-1.0f); // never timeout
 
-    int errnum = cam_iface_have_error();
-    if (errnum == CAM_IFACE_FRAME_TIMEOUT) {
-      cam_iface_clear_error();
-      continue; // wait again
-    }
-    if (errnum == CAM_IFACE_FRAME_DATA_MISSING_ERROR) {
-      cam_iface_clear_error();
-    } else if (errnum == CAM_IFACE_FRAME_INTERRUPTED_SYSCALL) {
-      cam_iface_clear_error();
-    } else if (errnum == CAM_IFACE_FRAME_DATA_CORRUPT_ERROR) {
-      cam_iface_clear_error();
-    } else {
-      _check_error();
-
-        if (!got_frame) {
-            ROS_INFO("recieving images");
-            got_frame = true;
+        int errnum = cam_iface_have_error();
+        if (errnum == CAM_IFACE_FRAME_TIMEOUT) {
+            cam_iface_clear_error();
+            continue; // wait again
         }
 
-      sensor_msgs::Image msg;
-      if (_host_timestamp) {
-	msg.header.stamp = ros::Time::now();
-      } else {
-	double timestamp;
-	CamContext_get_last_timestamp(cc,&timestamp);
-	_check_error();
-	msg.header.stamp = ros::Time(timestamp);
-      }
+        if (errnum == CAM_IFACE_FRAME_DATA_MISSING_ERROR) {
+            cam_iface_clear_error();
+        } else if (errnum == CAM_IFACE_FRAME_INTERRUPTED_SYSCALL) {
+            cam_iface_clear_error();
+        } else if (errnum == CAM_IFACE_FRAME_DATA_CORRUPT_ERROR) {
+            cam_iface_clear_error();
+        } else {
+            _check_error();
 
-      unsigned long framenumber;
-      CamContext_get_last_framenumber(cc,&framenumber);
-      _check_error();
+            if (!got_frame) {
+                ROS_INFO("recieving images");
+                got_frame = true;
+            }
 
-      msg.header.seq = framenumber;
-      msg.header.frame_id = "0";
+            sensor_msgs::Image msg;
+            if (_host_timestamp) {
+                msg.header.stamp = ros::Time::now();
+            } else {
+                double timestamp;
+                CamContext_get_last_timestamp(cc,&timestamp);
+                _check_error();
+                msg.header.stamp = ros::Time(timestamp);
+            }
 
-      msg.height = height;
-      msg.width = width;
-      msg.encoding = encoding;
-      msg.step = step;
-      msg.data = data;
+            unsigned long framenumber;
+            CamContext_get_last_framenumber(cc,&framenumber);
+            _check_error();
 
-      // get current CameraInfo data
-      cam_info = cam_info_manager->getCameraInfo();
-      cam_info.header.stamp = msg.header.stamp;
-      cam_info.header.seq = msg.header.seq;
-      cam_info.header.frame_id = msg.header.frame_id;
-      cam_info.height = height;
-      cam_info.width = width;
+            msg.header.seq = framenumber;
+            msg.header.frame_id = "0";
 
-      publisher.publish(msg, cam_info);
+            msg.height = height;
+            msg.width = width;
+            msg.encoding = encoding;
+            msg.step = step;
+            msg.data = data;
+
+            // get current CameraInfo data
+            cam_info = cam_info_manager->getCameraInfo();
+            cam_info.header.stamp = msg.header.stamp;
+            cam_info.header.seq = msg.header.seq;
+            cam_info.header.frame_id = msg.header.frame_id;
+            cam_info.height = height;
+            cam_info.width = width;
+
+            publisher.publish(msg, cam_info);
+        }
+
+        ros::spinOnce();
     }
-    ros::spinOnce();
-  }
 
-  CamContext_stop_camera(cc);
-  cam_iface_shutdown();
-  return 0;
+    CamContext_stop_camera(cc);
+    cam_iface_shutdown();
+    return 0;
 }
 
 int main(int argc, char** argv)
 {
-  CameraNode* cn = new CameraNode(argc,argv);
-  return cn->run();
+    CameraNode* cn = new CameraNode(argc,argv);
+    return cn->run();
 }
