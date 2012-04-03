@@ -28,17 +28,12 @@ FIND_PACKAGE(camiface)
 #common commands for building c++ executables and libraries
 #rosbuild_add_library(${PROJECT_NAME} src/example.cpp)
 #target_link_libraries(${PROJECT_NAME} another_library)
-#rosbuild_add_boost_directories()
-#rosbuild_link_boost(${PROJECT_NAME} thread)
 #rosbuild_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
-
-rosbuild_add_boost_directories()
 
 rosbuild_add_executable(camnode src/camnode.cpp)
 include_directories(${CAMIFACE_INCLUDE_PATH})
 target_link_libraries(camnode ${CAMIFACE_LIBRARY})
-rosbuild_link_boost(camnode program_options)
 
 # include the C shaders directly in the executable program
 add_custom_command (
