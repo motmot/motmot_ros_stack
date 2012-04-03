@@ -139,29 +139,34 @@ CameraNode::CameraNode(int argc, char** argv) :
         }
 
         _check_error();
-        ROS_INFO("camera %d:",i);
-        ROS_INFO("  vendor: %s",cam_info_struct.vendor);
-        ROS_INFO("  model: %s",cam_info_struct.model);
-        ROS_INFO("  chip: %s",cam_info_struct.chip);
+        ROS_DEBUG("camera %d:",i);
+        ROS_DEBUG("  vendor: %s",cam_info_struct.vendor);
+        ROS_DEBUG("  model: %s",cam_info_struct.model);
+        ROS_DEBUG("  chip: %s",cam_info_struct.chip);
         std::string sn = make_safe_name(cam_info_struct.chip);
         safe_names.push_back( sn );
-        ROS_INFO("  safe name: %s",sn.c_str());
+        ROS_DEBUG("  safe name: %s",sn.c_str());
 
         if (device_number == i) {
             _device_number = i;
             ROS_INFO("using user supplied device_number");
         } else if (device_guid.length() && (sn == device_guid)) {
             _device_number = i;
-            ROS_INFO("using user supplied device_gui");
+            ROS_INFO("using user supplied device_guid");
         }
     }
 
     if (safe_names.empty()) {
         ROS_WARN("No cameras available");
         exit(1);
+    } else {
+        Camwire_id cam_info_struct;
+        cam_iface_get_camera_info(_device_number, &cam_info_struct);
+        _check_error();
+        ROS_INFO("choosing camera %d (%s %s guid:%s)",
+                    _device_number,
+                    cam_info_struct.vendor, cam_info_struct.model, cam_info_struct.chip);
     }
-
-    ROS_INFO("choosing camera %d", _device_number);
 
     int num_modes;
     cam_iface_get_num_modes(_device_number, &num_modes);
@@ -270,9 +275,10 @@ CameraNode::CameraNode(int argc, char** argv) :
     _check_error();
 
     ROS_DEBUG("trigger modes:");
+
+    char mode[255];
     int trigger_mode_number = 0;
     for (int i =0; i<num_trigger_modes; i++) {
-        char mode[255];
         CamContext_get_trigger_mode_string( cc, i, mode, 255 );
         ROS_DEBUG("  %s (#%d)", mode, i);
 
@@ -281,7 +287,10 @@ CameraNode::CameraNode(int argc, char** argv) :
             trigger_mode_number = i;
     }
 
-    ROS_INFO("choosing trigger mode %d", trigger_mode_number);
+    CamContext_get_trigger_mode_string( cc, trigger_mode_number, mode, 255 );
+    _check_error();
+    ROS_INFO("choosing trigger mode %d (%s)", trigger_mode_number, mode);
+
     CamContext_set_trigger_mode_number( cc, trigger_mode_number );
     _check_error();
 
