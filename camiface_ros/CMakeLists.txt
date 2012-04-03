@@ -35,10 +35,10 @@ FIND_PACKAGE(camiface)
 
 rosbuild_add_boost_directories()
 
-rosbuild_add_executable(camiface_ros_capture src/camiface_ros_capture.cpp)
+rosbuild_add_executable(camnode src/camnode.cpp)
 include_directories(${CAMIFACE_INCLUDE_PATH})
-target_link_libraries(camiface_ros_capture ${CAMIFACE_LIBRARY})
-rosbuild_link_boost(camiface_ros_capture program_options)
+target_link_libraries(camnode ${CAMIFACE_LIBRARY})
+rosbuild_link_boost(camnode program_options)
 
 # include the C shaders directly in the executable program
 add_custom_command (

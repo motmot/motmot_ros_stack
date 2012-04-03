@@ -9,7 +9,7 @@ Installation
 
 (These instructions are modeled after the `ROS kinect package
 <http://www.ros.org/wiki/kinect>`_.) These instructions were tested on
-Ubuntu Lucid (10.04).
+Ubuntu Lucid (10.04) and Ubuntu Precise (12.04).
 
  0. `Install motmot <http://code.astraw.com/projects/motmot/download.html#id4>`_.
 

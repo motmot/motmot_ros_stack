@@ -1,7 +1,5 @@
 glew:
   ubuntu: libglew1.5-dev
-python_motmot_camiface:
-  ubuntu: python-motmot-camiface
 libcamiface:
   ubuntu: libcamiface-dev
 sdl:
