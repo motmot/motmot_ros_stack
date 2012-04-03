@@ -92,8 +92,8 @@ CameraNode::CameraNode(int argc, char** argv) :
     if (_host_timestamp)
         ROS_INFO("Host timestamps ON");
 
-    int device_number = -1;
-    ros::param::get (ros::this_node::getName() + "/device_number", device_number);
+    int param_device_number = -1;
+    ros::param::get (ros::this_node::getName() + "/device_number", param_device_number);
 
     std::string device_guid;
     ros::param::get (ros::this_node::getName() + "/device_guid", device_guid);
@@ -117,6 +117,7 @@ CameraNode::CameraNode(int argc, char** argv) :
 
     ROS_DEBUG("using driver %s",cam_iface_get_driver_name());
 
+
     int ncams = cam_iface_get_num_cameras();
     _check_error();
 
@@ -139,18 +140,15 @@ CameraNode::CameraNode(int argc, char** argv) :
         }
 
         _check_error();
-        ROS_DEBUG("camera %d:",i);
-        ROS_DEBUG("  vendor: %s",cam_info_struct.vendor);
-        ROS_DEBUG("  model: %s",cam_info_struct.model);
-        ROS_DEBUG("  chip: %s",cam_info_struct.chip);
+        ROS_INFO("camera %d guid: %s",i,cam_info_struct.chip);
         std::string sn = make_safe_name(cam_info_struct.chip);
         safe_names.push_back( sn );
-        ROS_DEBUG("  safe name: %s",sn.c_str());
+        ROS_DEBUG("camera safe name: %s",sn.c_str());
 
-        if (device_number == i) {
+        if (param_device_number == i) {
             _device_number = i;
             ROS_INFO("using user supplied device_number");
-        } else if (device_guid.length() && (sn == device_guid)) {
+        } else if (device_guid.length() && (cam_info_struct.chip == device_guid)) {
             _device_number = i;
             ROS_INFO("using user supplied device_guid");
         }
@@ -251,19 +249,10 @@ CameraNode::CameraNode(int argc, char** argv) :
         }
     }
 
-    int buffer_size;
-    CamContext_get_buffer_size(cc,&buffer_size);
-    _check_error();
-
-    if (buffer_size == 0) {
-        ROS_FATAL("buffer size was 0");
-        exit(1);
-    }
-
     cam_info_manager = new camera_info_manager::CameraInfoManager(_node);
-    if (!cam_info_manager->setCameraName(safe_names.at(_device_number))) {
-        ROS_WARN("ROS name %s not valid for camera_info_manager\n",ros::this_node::getName().c_str());
-    }
+//    if (!cam_info_manager->setCameraName(safe_names.at(_device_number))) {
+//        ROS_WARN("ROS name %s not valid for camera_info_manager\n",ros::this_node::getName().c_str());
+//    }
 
     // topic is "image_raw", with queue size of 1
     // image transport interfaces
@@ -329,14 +318,13 @@ CameraNode::CameraNode(int argc, char** argv) :
 }
 
 int CameraNode::run() {
-  printf("will now run forever. press Ctrl-C to interrupt\n");
-
+    bool got_frame = false;
   while (ros::ok())
   {
-
     std::vector<uint8_t> data(step*height);
-    //CamContext_grab_next_frame_blocking(cc,&data[0],0.2); // timeout after 200 msec
+
     CamContext_grab_next_frame_blocking(cc,&data[0],-1.0f); // never timeout
+
     int errnum = cam_iface_have_error();
     if (errnum == CAM_IFACE_FRAME_TIMEOUT) {
       cam_iface_clear_error();
@@ -350,6 +338,11 @@ int CameraNode::run() {
       cam_iface_clear_error();
     } else {
       _check_error();
+
+        if (!got_frame) {
+            ROS_INFO("recieving images");
+            got_frame = true;
+        }
 
       sensor_msgs::Image msg;
       if (_host_timestamp) {
@@ -386,6 +379,9 @@ int CameraNode::run() {
     }
     ros::spinOnce();
   }
+
+  CamContext_stop_camera(cc);
+  cam_iface_shutdown();
   return 0;
 }
 
