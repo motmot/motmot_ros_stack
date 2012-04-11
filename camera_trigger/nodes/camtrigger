@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+# -*- Mode: python; tab-width: 4; indent-tabs-mode: nil; indent-offset: 4 -*-
+
+import roslib; roslib.load_manifest('camera_trigger')
+import rospy
+
+import camera_trigger.srv
+
+try:
+    from triggerlib import ttrigger
+    ttrigger = "ros"
+except ImportError:
+    from motmot.fview_ext_trig import ttrigger
+    ttrigger = "motmot"
+
+class ROSCamTrigger:
+    def __init__(self, debug=False):
+        self.d = ttrigger.DeviceModel()
+        self.lock = threading.Lock()
+
+        s = rospy.Service('~set_framerate', camera_trigger.srv.SetFramerate, self.handle_set_framerate)
+
+    def handle_set_framerate(self, req):
+        with self.lock:
+            self.dev.set_frames_per_second_approximate(0.0)
+            self.dev.reset_framecount_A = True
+            self.dev.set_frames_per_second_approximate(req.fps)
+        return camera_trigger.srv.SetFramerateResponse()
+
+    def spin(self):
+        rospy.spin()    
+
+if __name__ == "__main__":
+    rospy.init_node('camera_trigger')
+    r = ROSCamTrigger(
+            rospy.get_param('~debug', False))
+    r.spin()
+

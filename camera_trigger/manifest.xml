@@ -1,0 +1,15 @@
+<package>
+  <description brief="camera_trigger">
+
+     camera_trigger
+
+  </description>
+  <author>John Stowers</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/camera_trigger</url>
+  <depend package="std_msgs"/>
+  <depend package="rospy"/>
+
+</package>
+
