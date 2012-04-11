@@ -4,21 +4,25 @@
 import roslib; roslib.load_manifest('camera_trigger')
 import rospy
 
+import threading
+
 import camera_trigger.srv
 
 try:
     from triggerlib import ttrigger
-    ttrigger = "ros"
+    ttriggerlib = "ros"
 except ImportError:
     from motmot.fview_ext_trig import ttrigger
-    ttrigger = "motmot"
+    ttriggerlib = "motmot"
 
 class ROSCamTrigger:
     def __init__(self, debug=False):
-        self.d = ttrigger.DeviceModel()
+        self.dev = ttrigger.DeviceModel()
         self.lock = threading.Lock()
 
-        s = rospy.Service('~set_framerate', camera_trigger.srv.SetFramerate, self.handle_set_framerate)
+        rospy.loginfo("started camera trigger (using ttrigger.py from %s)" % ttriggerlib)
+
+        s = rospy.Service('/camera_trigger/set_framerate', camera_trigger.srv.SetFramerate, self.handle_set_framerate)
 
     def handle_set_framerate(self, req):
         with self.lock:
