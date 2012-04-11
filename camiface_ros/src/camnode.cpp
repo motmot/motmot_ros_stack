@@ -82,7 +82,7 @@ private:
 
 CameraNode::CameraNode(int argc, char** argv) :
     _host_timestamp(false),
-    _device_number(-1)
+    _device_number(0)
 {
     int num_buffers;
 
@@ -152,10 +152,10 @@ CameraNode::CameraNode(int argc, char** argv) :
 
         if ((param_device_number != -1) && (param_device_number == i)) {
             _device_number = i;
-            ROS_INFO("using user supplied device_number");
+            ROS_INFO("using user supplied device_number %d", param_device_number);
         } else if (param_device_guid.length() && (cam_info_struct.chip == param_device_guid)) {
             _device_number = i;
-            ROS_INFO("using user supplied device_guid");
+            ROS_INFO("using user supplied device_guid %s", param_device_guid.c_str());
         }
     }
 
@@ -167,8 +167,6 @@ CameraNode::CameraNode(int argc, char** argv) :
         exit(1);
     } else {
         Camwire_id cam_info_struct;
-        /* choose the first camera */
-        _device_number = 0;
         cam_iface_get_camera_info(_device_number, &cam_info_struct);
         _check_error();
         ROS_INFO("choosing camera %d (%s %s guid:%s)",
@@ -213,6 +211,7 @@ CameraNode::CameraNode(int argc, char** argv) :
     CamContext_get_num_camera_properties(cc,&num_props);
     _check_error();
 
+#if 0
     ROS_DEBUG("%d camera properties:",num_props);
 
     for (int i=0; i<num_props; i++) {
@@ -258,6 +257,7 @@ CameraNode::CameraNode(int argc, char** argv) :
             ROS_DEBUG("not present");
         }
     }
+#endif
 
     cam_info_manager = new camera_info_manager::CameraInfoManager(_node);
 //    if (!cam_info_manager->setCameraName(safe_names.at(_device_number))) {
