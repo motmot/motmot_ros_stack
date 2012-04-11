@@ -266,7 +266,7 @@ CameraNode::CameraNode(int argc, char** argv) :
     ROS_DEBUG("trigger modes:");
 
     char mode[255];
-    int trigger_mode_number = 0;
+    int trigger_mode_number = -1;
     for (int i =0; i<num_trigger_modes; i++) {
         CamContext_get_trigger_mode_string( cc, i, mode, 255 );
         ROS_DEBUG("  %s (#%d)", mode, i);
@@ -276,12 +276,13 @@ CameraNode::CameraNode(int argc, char** argv) :
             trigger_mode_number = i;
     }
 
-    CamContext_get_trigger_mode_string( cc, trigger_mode_number, mode, 255 );
-    _check_error();
-    ROS_INFO("choosing trigger mode %d (%s)", trigger_mode_number, mode);
-
-    CamContext_set_trigger_mode_number( cc, trigger_mode_number );
-    _check_error();
+    if (trigger_mode_number != -1) {
+        CamContext_get_trigger_mode_string( cc, trigger_mode_number, mode, 255 );
+        _check_error();
+        ROS_INFO("choosing trigger mode %d (%s)", trigger_mode_number, mode);
+        CamContext_set_trigger_mode_number( cc, trigger_mode_number );
+        _check_error();
+    }
 
     CamContext_start_camera(cc);
     _check_error();
