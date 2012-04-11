@@ -81,7 +81,8 @@ private:
 };
 
 CameraNode::CameraNode(int argc, char** argv) :
-    _host_timestamp(false)
+    _host_timestamp(false),
+    _device_number(-1)
 {
     int num_buffers;
 
@@ -92,31 +93,35 @@ CameraNode::CameraNode(int argc, char** argv) :
     if (_host_timestamp)
         ROS_INFO("Host timestamps ON");
 
+    /*
+    if the user supplies a device_guid or number (or puts it in the parameter server
+    under the path of this node, use that. For example
+        $ rosrun camiface_ros camnode _device_guid:=Prosilica-02-2020C-06732
+    */
+
     int param_device_number = -1;
     ros::param::get (ros::this_node::getName() + "/device_number", param_device_number);
 
-    std::string device_guid;
-    ros::param::get (ros::this_node::getName() + "/device_guid", device_guid);
+    std::string param_device_guid;
+    ros::param::get (ros::this_node::getName() + "/device_guid", param_device_guid);
 
-    int device_guid_int = -1;
-    ros::param::get (ros::this_node::getName() + "/device_guid", device_guid_int);
+    int param_device_guid_int = -1;
+    ros::param::get (ros::this_node::getName() + "/device_guid", param_device_guid_int);
 
-    std::string device_trigger;
-    ros::param::get (ros::this_node::getName() + "/device_trigger", device_trigger);
+    std::string param_device_trigger;
+    ros::param::get (ros::this_node::getName() + "/device_trigger", param_device_trigger);
 
-
-    if (device_guid_int != -1 && device_guid.empty()) {
+    if (param_device_guid_int != -1 && param_device_guid.empty()) {
         ROS_WARN("stupid ros weakly typed parameter server - converting guid to string");
         std::stringstream out;
-        out << device_guid_int;
-        device_guid = out.str();
+        out << param_device_guid_int;
+        param_device_guid = out.str();
     }
 
     cam_iface_startup_with_version_check();
     _check_error();
 
     ROS_DEBUG("using driver %s",cam_iface_get_driver_name());
-
 
     int ncams = cam_iface_get_num_cameras();
     _check_error();
@@ -145,10 +150,10 @@ CameraNode::CameraNode(int argc, char** argv) :
         safe_names.push_back( sn );
         ROS_DEBUG("camera safe name: %s",sn.c_str());
 
-        if (param_device_number == i) {
+        if ((param_device_number != -1) && (param_device_number == i)) {
             _device_number = i;
             ROS_INFO("using user supplied device_number");
-        } else if (device_guid.length() && (cam_info_struct.chip == device_guid)) {
+        } else if (param_device_guid.length() && (cam_info_struct.chip == param_device_guid)) {
             _device_number = i;
             ROS_INFO("using user supplied device_guid");
         }
@@ -157,8 +162,13 @@ CameraNode::CameraNode(int argc, char** argv) :
     if (safe_names.empty()) {
         ROS_WARN("No cameras available");
         exit(1);
+    } else if (_device_number == -1 && ((param_device_number != -1) || param_device_guid.length())) {
+        ROS_WARN("Selected camera not found");
+        exit(1);
     } else {
         Camwire_id cam_info_struct;
+        /* choose the first camera */
+        _device_number = 0;
         cam_iface_get_camera_info(_device_number, &cam_info_struct);
         _check_error();
         ROS_INFO("choosing camera %d (%s %s guid:%s)",
@@ -272,7 +282,7 @@ CameraNode::CameraNode(int argc, char** argv) :
         ROS_DEBUG("  %s (#%d)", mode, i);
 
         std::string mode_string(mode);
-        if (device_trigger == mode_string)
+        if (param_device_trigger == mode_string)
             trigger_mode_number = i;
     }
 
