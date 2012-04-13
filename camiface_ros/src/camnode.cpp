@@ -163,10 +163,16 @@ CameraNode::CameraNode(int argc, char** argv) :
         ROS_WARN("No cameras available");
         exit(1);
     } else if (_device_number == -1 && ((param_device_number != -1) || param_device_guid.length())) {
-        ROS_WARN("Selected camera not found");
+        ROS_WARN("Selected camera %s (%d) not found", param_device_guid.c_str(), param_device_number);
         exit(1);
     } else {
         Camwire_id cam_info_struct;
+
+        if (_device_number == -1) {
+            ROS_INFO("No explicitly selected camera");
+            _device_number = 0; /* choose first camera if the user didn't specify */
+        }
+
         cam_iface_get_camera_info(_device_number, &cam_info_struct);
         _check_error();
         ROS_INFO("choosing camera %d (%s %s guid:%s)",
