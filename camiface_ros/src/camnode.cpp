@@ -28,22 +28,35 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-
+#include <map>
 #include <ros/ros.h>
 #include <ros/time.h>
+#include <std_msgs/Float32.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
 #include <image_transport/image_transport.h>
 #include <camera_info_manager/camera_info_manager.h>
 
+#include <dynamic_reconfigure/server.h>
+#include <camiface_ros/camera_configConfig.h>
+
 #include <cam_iface.h>
+
+typedef dynamic_reconfigure::Server<camiface_ros::camera_configConfig> DynamicReconfigureCameraConfig;
+
+const std::string PROPERTY_NAME_SHUTTER("shutter");
+const std::string PROPERTY_NAME_GAIN("gain");
+
+// the level bitmasks are defined in the .cfg file
+#define CFG_MASK_TRIGGER 0x01
+#define CFG_MASK_SHUTTER 0x02
+#define CFG_MASK_GAIN    0x04
 
 #define _check_error() {                                                \
     int _check_error_err;                                               \
     _check_error_err = cam_iface_have_error();                          \
     if (_check_error_err != 0) {                                        \
-                                                                        \
-      fprintf(stderr,"%s:%d %s\n", __FILE__,__LINE__,cam_iface_get_error_string()); \
+      ROS_FATAL("%s:%d %s\n", __FILE__,__LINE__,cam_iface_get_error_string()); \
       exit(1);                                                          \
     }                                                                   \
   }                                                                     \
@@ -66,29 +79,32 @@ std::string make_safe_name(std::string instr) {
 
 class CameraNode {
 public:
-    CameraNode(int argc, char** argv);
+    CameraNode(ros::NodeHandle &node_priv, int argc, char** argv);
     int run();
+    void config_callback(camiface_ros::camera_configConfig &config, uint32_t level);
 private:
     CamContext *cc;
+    ros::NodeHandle &_node_priv;
+    std::map<std::string, int> _trigger_modes;
+    std::map<std::string, int> _property_numbers;
+    bool _got_frame;
     int step;
     std::string encoding;
     int width, height;
     sensor_msgs::CameraInfo cam_info;
-    image_transport::CameraPublisher publisher;
+    image_transport::CameraPublisher _pub_image;
+    ros::Publisher _pub_rate;
     camera_info_manager::CameraInfoManager *cam_info_manager;
     bool _host_timestamp;
     int _device_number;
 };
 
-CameraNode::CameraNode(int argc, char** argv) :
+CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
+    _node_priv(node_priv),
+    _got_frame(false),
     _host_timestamp(false),
     _device_number(0)
 {
-    int num_buffers;
-
-    ros::init(argc, argv, "camnode", ros::init_options::AnonymousName);
-    ros::NodeHandle _node;
-
     ros::param::get ("host_timestamp", _host_timestamp);
     if (_host_timestamp)
         ROS_INFO("Host timestamps ON");
@@ -100,17 +116,12 @@ CameraNode::CameraNode(int argc, char** argv) :
     */
 
     int param_device_number = -1;
-    ros::param::get (ros::this_node::getName() + "/device_number", param_device_number);
+    _node_priv.getParam("device_number", param_device_number);
 
     std::string param_device_guid;
-    ros::param::get (ros::this_node::getName() + "/device_guid", param_device_guid);
-
+    _node_priv.getParam("device_guid", param_device_guid);
     int param_device_guid_int = -1;
-    ros::param::get (ros::this_node::getName() + "/device_guid", param_device_guid_int);
-
-    std::string param_device_trigger;
-    ros::param::get (ros::this_node::getName() + "/device_trigger", param_device_trigger);
-
+    _node_priv.getParam("device_guid", param_device_guid_int);
     if (param_device_guid_int != -1 && param_device_guid.empty()) {
         ROS_WARN("stupid ros weakly typed parameter server - converting guid to string");
         std::stringstream out;
@@ -200,108 +211,50 @@ CameraNode::CameraNode(int argc, char** argv) :
     }
 
     ROS_INFO("choosing mode %d",mode_number);
-
-    num_buffers = 5;
     cam_iface_constructor_func_t new_CamContext = cam_iface_get_constructor_func(_device_number);
-    cc = new_CamContext(_device_number,num_buffers,mode_number);
+    cc = new_CamContext(_device_number, 5 /*num buffers*/,mode_number);
     _check_error();
 
     int left, top;
     CamContext_get_frame_roi(cc, &left, &top, &width, &height);
     _check_error();
 
-    CamContext_get_num_framebuffers(cc,&num_buffers);
-    ROS_DEBUG("allocated %d buffers",num_buffers);
-
+    // camera nodes must support at least shutter and gain
     int num_props;
     CamContext_get_num_camera_properties(cc,&num_props);
     _check_error();
-
-#if 0
     ROS_DEBUG("%d camera properties:",num_props);
-
     for (int i=0; i<num_props; i++) {
         CameraPropertyInfo cam_props;
         CamContext_get_camera_property_info(cc,i,&cam_props);
         _check_error();
 
-        if (strcmp(cam_props.name,"white balance")==0) {
-            ROS_WARN("WARNING: ignoring white balance property");
-            continue;
-        }
-
-        ROS_DEBUG("  %s: ",cam_props.name);
-
         if (cam_props.is_present) {
             if (cam_props.available) {
-                if (cam_props.absolute_capable) {
-                    if (cam_props.absolute_control_mode) {
-                        ROS_DEBUG("(absolute capable, on) " );
-                    } else {
-                        ROS_DEBUG("(absolute capable, off) " );
-                    }
-
-                }
-                if (cam_props.readout_capable) {
-                    if (cam_props.has_manual_mode) {
-                        long prop_value;
-                        int prop_auto;
-                        CamContext_get_camera_property(cc,i,&prop_value,&prop_auto);
-                        _check_error();
-                        ROS_DEBUG("%ld",prop_value);
-                    } else {
-                        /* Firefly2 temperature won't be read out. */
-                        ROS_DEBUG("no manual mode, won't read out. Original value: %ld",cam_props.original_value);
-                    }
-                } else {
-                        ROS_DEBUG("not readout capable");
-                }
-            } else {
-                ROS_DEBUG("present, but not available");
+                _property_numbers[std::string(cam_props.name)] = i;
+                ROS_DEBUG("  %s (#%d): ",cam_props.name, i);
             }
-        } else {
-            ROS_DEBUG("not present");
         }
     }
-#endif
 
-    cam_info_manager = new camera_info_manager::CameraInfoManager(_node);
-//    if (!cam_info_manager->setCameraName(safe_names.at(_device_number))) {
-//        ROS_WARN("ROS name %s not valid for camera_info_manager\n",ros::this_node::getName().c_str());
-//    }
+    ROS_INFO("starting Camera info manager for: %s", safe_names.at(_device_number).c_str());
+    cam_info_manager = new camera_info_manager::CameraInfoManager(_node_priv, safe_names.at(_device_number));
+    image_transport::ImageTransport *transport = new image_transport::ImageTransport(_node_priv);
+    _pub_image = transport->advertiseCamera(_node_priv.resolveName("image_raw"), 1);
 
-    // topic is "image_raw", with queue size of 1
-    // image transport interfaces
-    image_transport::ImageTransport *transport = new image_transport::ImageTransport(_node);
-    publisher = transport->advertiseCamera(ros::this_node::getName() + "/image_raw", 1);
+    _pub_rate = _node_priv.advertise<std_msgs::Float32>("framerate", 5);
 
     int num_trigger_modes;
     CamContext_get_num_trigger_modes( cc, &num_trigger_modes );
     _check_error();
 
-    ROS_DEBUG("trigger modes:");
-
+    ROS_INFO("trigger modes:");
     char mode[255];
-    int trigger_mode_number = -1;
-    for (int i =0; i<num_trigger_modes; i++) {
+    for (int i=0; i<num_trigger_modes; i++) {
         CamContext_get_trigger_mode_string( cc, i, mode, 255 );
-        ROS_DEBUG("  %s (#%d)", mode, i);
-
-        std::string mode_string(mode);
-        if (param_device_trigger == mode_string)
-            trigger_mode_number = i;
+        ROS_INFO("  %s (#%d)", mode, i);
+        _trigger_modes[std::string(mode)] = i;
     }
-
-    if (trigger_mode_number != -1) {
-        CamContext_get_trigger_mode_string( cc, trigger_mode_number, mode, 255 );
-        _check_error();
-        ROS_INFO("choosing trigger mode %d (%s)", trigger_mode_number, mode);
-        CamContext_set_trigger_mode_number( cc, trigger_mode_number );
-        _check_error();
-    }
-
-    CamContext_start_camera(cc);
-    _check_error();
 
     switch (cc->coding) {
         case CAM_IFACE_MONO8_BAYER_BGGR:
@@ -332,11 +285,53 @@ CameraNode::CameraNode(int argc, char** argv) :
             ROS_FATAL("do not know encoding for this format");
             exit(1);
     }
+
+    CamContext_start_camera(cc);
+    _check_error();
+}
+
+void CameraNode::config_callback(camiface_ros::camera_configConfig &config, uint32_t level)
+{
+    if (level & CFG_MASK_TRIGGER) {
+        if (_trigger_modes.count(config.trigger)) {
+            int i = _trigger_modes[config.trigger];
+            ROS_INFO("setting trigger %s (#%d)", config.trigger.c_str(), i);
+            CamContext_set_trigger_mode_number(cc, i);
+            _check_error();
+        }
+    }
+
+    if (level & CFG_MASK_SHUTTER) {
+        if (_property_numbers.count(PROPERTY_NAME_SHUTTER)) {
+            int i = _property_numbers[PROPERTY_NAME_SHUTTER];
+            long usec = config.shutter * 1e3;
+            CamContext_set_camera_property(cc, i, usec, usec < 0);
+            _check_error();
+            ROS_INFO("setting shutter -> %ims", config.shutter);
+
+        }
+    }
+
+    if (level & CFG_MASK_GAIN) {
+        if (_property_numbers.count(PROPERTY_NAME_GAIN)) {
+            int i = _property_numbers[PROPERTY_NAME_GAIN];
+            long gain = config.gain;
+            CamContext_set_camera_property(cc, i, gain, gain < 0);
+            _check_error();
+            ROS_INFO("setting gain -> %li", gain);
+        }
+    }
 }
 
 int CameraNode::run()
 {
-    bool got_frame = false;
+    ros::WallTime t_prev, t_now;
+    int dt_avg;
+
+    // reset timing information
+    dt_avg = 0;
+    t_prev = ros::WallTime::now();
+
     while (ros::ok()) {
         std::vector<uint8_t> data(step*height);
 
@@ -357,9 +352,21 @@ int CameraNode::run()
         } else {
             _check_error();
 
-            if (!got_frame) {
+            if (!_got_frame) {
                 ROS_INFO("recieving images");
-                got_frame = true;
+                _got_frame = true;
+            }
+
+            if(dt_avg++ == 9) {
+                ros::WallTime t_now = ros::WallTime::now();
+                ros::WallDuration dur = t_now - t_prev;
+                t_prev = t_now;
+
+                std_msgs::Float32 rate;
+                rate.data = 10 / dur.toSec();
+                _pub_rate.publish(rate);
+
+                dt_avg = 0;
             }
 
             sensor_msgs::Image msg;
@@ -378,7 +385,6 @@ int CameraNode::run()
 
             msg.header.seq = framenumber;
             msg.header.frame_id = "0";
-
             msg.height = height;
             msg.width = width;
             msg.encoding = encoding;
@@ -393,7 +399,7 @@ int CameraNode::run()
             cam_info.height = height;
             cam_info.width = width;
 
-            publisher.publish(msg, cam_info);
+            _pub_image.publish(msg, cam_info);
         }
 
         ros::spinOnce();
@@ -406,6 +412,13 @@ int CameraNode::run()
 
 int main(int argc, char** argv)
 {
-    CameraNode* cn = new CameraNode(argc,argv);
+    ros::init(argc, argv, "camnode", ros::init_options::AnonymousName);
+    ros::NodeHandle node;
+    ros::NodeHandle node_priv("~");
+    DynamicReconfigureCameraConfig config_srv;
+    DynamicReconfigureCameraConfig::CallbackType cb;
+    CameraNode* cn = new CameraNode(node_priv, argc,argv);
+    cb = boost::bind(&CameraNode::config_callback, cn, _1, _2);
+    config_srv.setCallback(cb);
     return cn->run();
 }
