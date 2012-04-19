@@ -87,6 +87,7 @@ private:
     ros::NodeHandle &_node_priv;
     std::map<std::string, int> _trigger_modes;
     std::map<std::string, int> _property_numbers;
+    int _verbose;
     bool _got_frame;
     int step;
     std::string encoding;
@@ -101,13 +102,16 @@ private:
 
 CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
     _node_priv(node_priv),
+    _verbose(0),
     _got_frame(false),
     _host_timestamp(false),
     _device_number(0)
 {
     ros::param::get ("host_timestamp", _host_timestamp);
     if (_host_timestamp)
-        ROS_INFO("Host timestamps ON");
+        ROS_INFO("host timestamps ON");
+
+    _node_priv.getParam("verbose", _verbose);
 
     /*
     if the user supplies a device_guid or number (or puts it in the parameter server
@@ -129,6 +133,9 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
         param_device_guid = out.str();
     }
 
+    int param_device_mode = -1;
+    _node_priv.getParam("device_mode", param_device_mode);
+
     cam_iface_startup_with_version_check();
     _check_error();
 
@@ -144,8 +151,10 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
         exit(1);
     }
 
+    if (_verbose)
+        ROS_INFO("%d camera(s) found",ncams);
+
     std::vector<std::string> safe_names;
-    ROS_INFO("%d camera(s) found",ncams);
     for (int i=0; i<ncams; i++) {
         Camwire_id cam_info_struct;
         cam_iface_get_camera_info(i, &cam_info_struct);
@@ -156,7 +165,8 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
         }
 
         _check_error();
-        ROS_INFO("camera %d guid: %s",i,cam_info_struct.chip);
+        if (_verbose)
+            ROS_INFO("camera %d guid: %s",i,cam_info_struct.chip);
         std::string sn = make_safe_name(cam_info_struct.chip);
         safe_names.push_back( sn );
         ROS_DEBUG("camera safe name: %s",sn.c_str());
@@ -186,17 +196,16 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
 
         cam_iface_get_camera_info(_device_number, &cam_info_struct);
         _check_error();
-        ROS_INFO("choosing camera %d (%s %s guid:%s)",
+        ROS_INFO("choosing camera %d (%s guid:%s)",
                     _device_number,
-                    cam_info_struct.vendor, cam_info_struct.model, cam_info_struct.chip);
+                    cam_info_struct.vendor, cam_info_struct.chip);
     }
 
     int num_modes;
     cam_iface_get_num_modes(_device_number, &num_modes);
     _check_error();
-
-    ROS_DEBUG("%d mode(s) available:\n",num_modes);
-
+    if (_verbose)
+        ROS_INFO("%d mode(s) available:",num_modes);
     int mode_number = 0;
     for (int i=0; i<num_modes; i++) {
         char mode_string[255];
@@ -207,10 +216,16 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
                 mode_number = i;
             }
         }
-        ROS_DEBUG("  %d: %s",i,mode_string);
+        if (_verbose)
+            ROS_INFO("  %d: %s",i,mode_string);
     }
 
-    ROS_INFO("choosing mode %d",mode_number);
+    if (param_device_mode != -1) {
+        ROS_INFO("manually choosing user specified mode %d",param_device_mode);
+        mode_number = param_device_mode;
+    } else {
+        ROS_INFO("auto choosing mode %d",mode_number);
+    }
     cam_iface_constructor_func_t new_CamContext = cam_iface_get_constructor_func(_device_number);
     cc = new_CamContext(_device_number, 5 /*num buffers*/,mode_number);
     _check_error();
@@ -232,12 +247,13 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
         if (cam_props.is_present) {
             if (cam_props.available) {
                 _property_numbers[std::string(cam_props.name)] = i;
-                ROS_DEBUG("  %s (#%d): ",cam_props.name, i);
+                if (_verbose)
+                    ROS_DEBUG("  %s (#%d): ",cam_props.name, i);
             }
         }
     }
 
-    ROS_INFO("starting Camera info manager for: %s", safe_names.at(_device_number).c_str());
+    ROS_INFO("starting camera info manager for: %s", safe_names.at(_device_number).c_str());
     cam_info_manager = new camera_info_manager::CameraInfoManager(_node_priv, safe_names.at(_device_number));
     image_transport::ImageTransport *transport = new image_transport::ImageTransport(_node_priv);
     _pub_image = transport->advertiseCamera(_node_priv.resolveName("image_raw"), 1);
@@ -248,12 +264,15 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
     CamContext_get_num_trigger_modes( cc, &num_trigger_modes );
     _check_error();
 
-    ROS_INFO("trigger modes:");
+    if (_verbose)
+        ROS_INFO("%d trigger source(s):", num_trigger_modes);
     char mode[255];
     for (int i=0; i<num_trigger_modes; i++) {
         CamContext_get_trigger_mode_string( cc, i, mode, 255 );
-        ROS_INFO("  %s (#%d)", mode, i);
         _trigger_modes[std::string(mode)] = i;
+        if (_verbose)
+            ROS_INFO("  %s (#%d)", mode, i);
+
     }
 
     switch (cc->coding) {
@@ -281,8 +300,12 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
             step = width*3;
             encoding = sensor_msgs::image_encodings::RGB8;
             break;
+        case CAM_IFACE_YUV422:
+            step = width;
+            encoding = sensor_msgs::image_encodings::YUV422;
+            break;
         default:
-            ROS_FATAL("do not know encoding for this format");
+            ROS_FATAL("do not know encoding for this format: %x", cc->coding);
             exit(1);
     }
 
