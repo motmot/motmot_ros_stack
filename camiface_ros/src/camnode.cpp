@@ -96,7 +96,7 @@ private:
     image_transport::CameraPublisher _pub_image;
     ros::Publisher _pub_rate;
     camera_info_manager::CameraInfoManager *cam_info_manager;
-    bool _host_timestamp;
+    int _host_timestamp;
     int _device_number;
 };
 
@@ -104,7 +104,7 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
     _node_priv(node_priv),
     _verbose(0),
     _got_frame(false),
-    _host_timestamp(false),
+    _host_timestamp(0),
     _device_number(0)
 {
     ros::param::get ("host_timestamp", _host_timestamp);
