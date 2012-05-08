@@ -317,6 +317,11 @@ class DeviceModel(traits.HasTraits):
             return 0
         return self.FOSC/self._t3_state.timer3_CS/self._t3_state.timer3_top
 
+    def trigger_single_frame(self):
+        buf = ctypes.create_string_buffer(1)
+        buf[0] = chr(CAMTRIG_DO_TRIG_ONCE)
+        self._send_buf(buf)
+
     def set_frames_per_second_approximate(self,value):
         """Set the framerate as close as possible to the desired value"""
         new_t3_state = DeviceTimer3State()
@@ -493,9 +498,7 @@ class DeviceModel(traits.HasTraits):
         self._send_buf(buf)
 
     def _do_single_frame_pulse_fired(self):
-        buf = ctypes.create_string_buffer(1)
-        buf[0] = chr(CAMTRIG_DO_TRIG_ONCE)
-        self._send_buf(buf)
+        self.trigger_single_frame()
 
     def _ext_trig1_fired(self):
         buf = ctypes.create_string_buffer(2)
