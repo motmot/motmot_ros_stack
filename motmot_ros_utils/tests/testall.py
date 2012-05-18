@@ -17,13 +17,15 @@ def test_io():
     print io.decode_url('${ROS_HOME}/foo')
 
 def test_formats():
-    url = io.decode_url('package://motmot_ros_utils/tests/Basler_21029383.yaml')
-    rad = '/tmp/test.rad'
-
-    formats.camera_calibration_yaml_to_radfile(url, rad)
     
+    urlyaml = io.decode_url('package://motmot_ros_utils/tests/Basler_21029383.yaml')
+    urlrad = io.decode_url('package://motmot_ros_utils/tests/Basler_21029383.rad')
 
+    rad = '/tmp/test.rad'
+    formats.camera_calibration_yaml_to_radfile(urlyaml, rad)
+    assert open(urlrad,'r').read() == open(rad,'r').read()
+    
 if __name__ == "__main__":
     rospy.init_node('test', anonymous=True)
-    #test_io()
+    test_io()
     test_formats()
