@@ -98,6 +98,7 @@ private:
     camera_info_manager::CameraInfoManager *cam_info_manager;
     int _host_timestamp;
     int _device_number;
+    std::string _interface_name;
 };
 
 CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
@@ -105,7 +106,8 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
     _verbose(0),
     _got_frame(false),
     _host_timestamp(0),
-    _device_number(0)
+    _device_number(0),
+    _interface_name("")
 {
     ros::param::get ("host_timestamp", _host_timestamp);
     if (_host_timestamp)
@@ -135,6 +137,8 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
 
     int param_device_mode = -1;
     _node_priv.getParam("device_mode", param_device_mode);
+
+    _node_priv.getParam("interface_name", _interface_name);
 
     cam_iface_startup_with_version_check();
     _check_error();
@@ -196,9 +200,10 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
 
         cam_iface_get_camera_info(_device_number, &cam_info_struct);
         _check_error();
-        ROS_INFO("choosing camera %d (%s guid:%s)",
+        ROS_INFO("choosing camera %d (%s guid:%s) on %s interface",
                     _device_number,
-                    cam_info_struct.vendor, cam_info_struct.chip);
+                    cam_info_struct.vendor, cam_info_struct.chip,
+                    _interface_name.length() ? _interface_name.c_str() : "any");
     }
 
     int num_modes;
@@ -227,7 +232,11 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
         ROS_INFO("auto choosing mode %d",mode_number);
     }
     cam_iface_constructor_func_t new_CamContext = cam_iface_get_constructor_func(_device_number);
-    cc = new_CamContext(_device_number, 5 /*num buffers*/,mode_number);
+    cc = new_CamContext(
+            _device_number,
+            5 /*num buffers*/,
+            mode_number,
+            _interface_name.length() ? _interface_name.c_str() : NULL);
     _check_error();
 
     int left, top;
