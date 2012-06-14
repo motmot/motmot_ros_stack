@@ -106,7 +106,7 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
     _verbose(0),
     _got_frame(false),
     _host_timestamp(0),
-    _device_number(0),
+    _device_number(-1),
     _interface_name("")
 {
     ros::param::get ("host_timestamp", _host_timestamp);
@@ -116,7 +116,7 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
     _node_priv.getParam("verbose", _verbose);
 
     /*
-    if the user supplies a device_guid or number (or puts it in the parameter server
+    if the user supplies a devicqe_guid or number (or puts it in the parameter server
     under the path of this node, use that. For example
         $ rosrun camiface_ros camnode _device_guid:=Prosilica-02-2020C-06732
     */
@@ -206,31 +206,32 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
                     _interface_name.length() ? _interface_name.c_str() : "any");
     }
 
-    int num_modes;
-    cam_iface_get_num_modes(_device_number, &num_modes);
-    _check_error();
-    if (_verbose)
-        ROS_INFO("%d mode(s) available:",num_modes);
     int mode_number = 0;
-    for (int i=0; i<num_modes; i++) {
-        char mode_string[255];
-        cam_iface_get_mode_string(_device_number,i,mode_string,255);
-        if (strstr(mode_string,"FORMAT7_0")!=NULL) {
-            if (strstr(mode_string,"MONO8")!=NULL) {
-                // pick this mode
-                mode_number = i;
-            }
-        }
-        if (_verbose)
-            ROS_INFO("  %d: %s",i,mode_string);
-    }
-
     if (param_device_mode != -1) {
-        ROS_INFO("manually choosing user specified mode %d",param_device_mode);
+        ROS_INFO("user specified mode");
         mode_number = param_device_mode;
     } else {
-        ROS_INFO("auto choosing mode %d",mode_number);
+        int num_modes;
+        ROS_INFO("attempting to auto choose mode");
+        cam_iface_get_num_modes(_device_number, &num_modes);
+        _check_error();
+        if (_verbose)
+            ROS_INFO("%d mode(s) available:",num_modes);
+        for (int i=0; i<num_modes; i++) {
+            char mode_string[255];
+            cam_iface_get_mode_string(_device_number,i,mode_string,255);
+            if (strstr(mode_string,"FORMAT7_0")!=NULL) {
+                if (strstr(mode_string,"MONO8")!=NULL) {
+                    // pick this mode
+                    mode_number = i;
+                }
+            }
+            if (_verbose)
+                ROS_INFO("  %d: %s",i,mode_string);
+        }
     }
+    ROS_INFO("chose mode %d", mode_number);
+
     cam_iface_constructor_func_t new_CamContext = cam_iface_get_constructor_func(_device_number);
     cc = new_CamContext(
             _device_number,
