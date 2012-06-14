@@ -6,9 +6,6 @@ import roslib
 roslib.load_manifest('rosbag')
 import rosbag.bag
 
-def camera_calibration_yaml_to_bagfile(yamlpath, extrinsics, bagpath):
-    pass
-
 def camera_calibration_yaml_to_radfile(yamlpath, bagpath):
     with open(yamlpath,'r') as yf:
         y = yaml.load(yf)
