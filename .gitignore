@@ -1,0 +1,8 @@
+camera_trigger/build/
+camera_trigger/src/camera_trigger/
+camera_trigger/srv_gen/
+camiface_ros/cfg/camera_config.cfgc
+camiface_ros/cfg/cpp/
+camiface_ros/docs/
+camiface_ros/fview.log
+camiface_ros/src/camiface_ros/
