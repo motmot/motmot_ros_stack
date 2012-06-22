@@ -25,8 +25,8 @@ class ROSCamTrigger:
 
         rospy.loginfo("started camera trigger (using ttrigger.py from %s)" % ttriggerlib)
 
-        s = rospy.Service('/camera_trigger/set_framerate', camera_trigger.srv.SetFramerate, self.handle_set_framerate)
-        s = rospy.Service('/camera_trigger/trigger_once', std_srvs.srv.Empty, self.handle_trigger_once)
+        s = rospy.Service('~set_framerate', camera_trigger.srv.SetFramerate, self.handle_set_framerate)
+        s = rospy.Service('~trigger_once', std_srvs.srv.Empty, self.handle_trigger_once)
 
         if framerate >= 0.0:
             self._set_framerate(framerate)
