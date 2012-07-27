@@ -2,10 +2,6 @@ import os.path
 
 import yaml
 
-import roslib
-roslib.load_manifest('rosbag')
-import rosbag.bag
-
 def camera_calibration_yaml_to_radfile(yamlpath, bagpath):
     with open(yamlpath,'r') as yf:
         y = yaml.load(yf)
@@ -26,5 +22,5 @@ def camera_calibration_yaml_to_radfile(yamlpath, bagpath):
             bf.write("kc3 = 0.0\n")
             bf.write("kc4 = 0.0\n")
             bf.write("\n")
-            
+
 
