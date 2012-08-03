@@ -3,7 +3,7 @@ import numpy as np
 
 import yaml
 
-def camera_calibration_yaml_to_radfile(yamlpath, radpath):
+def camera_calibration_yaml_to_radfile(yamlpath, radpath, lossy_ok=False):
     with open(yamlpath,'r') as yf:
         y = yaml.load(yf)
 
@@ -14,7 +14,7 @@ def camera_calibration_yaml_to_radfile(yamlpath, radpath):
         P = np.array(P); P.shape = y['projection_matrix']['rows'],y['projection_matrix']['cols']
         assert np.allclose(P[:,3], np.zeros((3,)))
 
-        if not np.allclose(Knp,P):
+        if not lossy_ok and not np.allclose(Knp,P):
             raise ValueError('cannot do lossless conversion to MultiCamSelfCal .rad file (camera matrix and projection matrix differ)')
         assert y['distortion_model']=='plumb_bob'
         dist = y['distortion_coefficients']['data']
