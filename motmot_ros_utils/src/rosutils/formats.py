@@ -1,26 +1,35 @@
 import os.path
+import numpy as np
 
 import yaml
 
-def camera_calibration_yaml_to_radfile(yamlpath, bagpath):
+def camera_calibration_yaml_to_radfile(yamlpath, radpath):
     with open(yamlpath,'r') as yf:
         y = yaml.load(yf)
+
         K = y['camera_matrix']['data']
+        Knp = np.array(K); Knp.shape = y['camera_matrix']['rows'],y['camera_matrix']['cols']
+
+        P = y['projection_matrix']['data']
+        P = np.array(P); P.shape = y['projection_matrix']['rows'],y['projection_matrix']['cols']
+        assert np.allclose(P[:,3], np.zeros((3,)))
+
+        if not np.allclose(Knp,P):
+            raise ValueError('cannot do lossless conversion to MultiCamSelfCal .rad file (camera matrix and projection matrix differ)')
+        assert y['distortion_model']=='plumb_bob'
         dist = y['distortion_coefficients']['data']
-        with open(bagpath,'w') as bf:
+        assert len(dist)==5
+        if dist[4]!=0.0:
+            raise ValueError('cannot do lossless conversion to MultiCamSelfCal .rad file (dist. coeff. k3 was %f)' % dist[4])
+        with open(radpath,'w') as bf:
             for row in range(3):
                 for col in range(3):
                     i = col + row*3
                     bf.write("K%d%d = %f\n" % (row+1,col+1,K[i]))
             bf.write("\n")
 
-            #XXX: in opencv (i.e. as is the yaml file), the coeffs are k1,k2,p1,p2,k3
-            #and in MultiCamSelfCal I am not sure what kc3 and kc4 are... so just do the
-            #first two, the most important ones (the radial dist. coeffs k1=kc1, k2=kc2)
-            for i in range(2):
+            for i in range(4):
                 bf.write("kc%d = %f\n" % (i+1,dist[i]))
-            bf.write("kc3 = 0.0\n")
-            bf.write("kc4 = 0.0\n")
             bf.write("\n")
 
 
