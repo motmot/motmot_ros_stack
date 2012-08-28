@@ -7,6 +7,9 @@ import rospy.names
 
 import os.path
 import string
+import xmlrpclib
+import tempfile
+import base64
 
 def decode_url(url, required=False):
     """
@@ -37,6 +40,9 @@ def decode_url(url, required=False):
     elif url.startswith('package://'):
         package,fragment = url[10:].split('/',1)
         url = os.path.join(roslib.packages.get_pkg_dir(package,required=False),fragment)
+    elif url.startswith('parameter://'):
+        package,fragment = url[11:].split('/',1)
+        return decode_url(decode_file_from_parameter_server(fragment), required=required)
 
     nodename = rospy.names.get_name()
     if nodename:
@@ -55,4 +61,20 @@ def decode_url(url, required=False):
         raise Exception("resource not found")
 
     return url
+
+_LOADFILE_TEMPDIR = tempfile.mkdtemp(prefix='motmot_ros_loadfile_dir')
+
+def decode_file_from_parameter_server(path, cache=True, suffix=''):
+    val = rospy.get_param(path)
+    if isinstance(val, str):
+        return val
+    elif isinstance(val, xmlrpclib.Binary):
+        tname = base64.urlsafe_b64encode(path)
+        tfile = os.path.join(_LOADFILE_TEMPDIR,tname+suffix)
+        if not cache or not os.path.exists(tfile):
+            with open(tfile, 'wb') as f:
+                f.write(val.data)
+        return tfile
+    else:
+        raise ValueError("parameter server value %s does not look like a path" % val)
 
