@@ -337,10 +337,10 @@ void CameraNode::config_callback(camiface_ros::camera_configConfig &config, uint
     if (level & CFG_MASK_SHUTTER) {
         if (_property_numbers.count(PROPERTY_NAME_SHUTTER)) {
             int i = _property_numbers[PROPERTY_NAME_SHUTTER];
-            long usec = config.shutter * 1e3;
+            long usec = config.shutter;
             CamContext_set_camera_property(cc, i, usec, usec < 0);
             _check_error();
-            ROS_INFO("setting shutter -> %ims", config.shutter);
+            ROS_INFO("setting shutter -> %ldus", usec);
 
         }
     }
