@@ -70,14 +70,15 @@ GLuint textureId;
 double buf_wf, buf_hf;
 GLint gl_data_format;
 GLhandleARB glsl_program;
+bool mono_uses_colormap;
 
 static std::map<std::string, MyCameraPixelCodings> static_coding_map;
 
 // forward declarations
 void initialize_gl_texture(std::string encoding);
 void upload_image_data_to_opengl(const unsigned char* raw_image_data,
-                                 std::string encoding);
-void setShaders();
+                                 std::string encoding, bool do_colormap);
+void setShaders(const char* vertex_fname, const char* fragment_fname);
 
 void init_coding_map()
 {
@@ -141,7 +142,7 @@ void image_cb(const sensor_msgs::ImageConstPtr& msg)
 
   }
 
-  upload_image_data_to_opengl(&msg->data[0], msg->encoding);
+  upload_image_data_to_opengl(&msg->data[0], msg->encoding, mono_uses_colormap);
 }
 
 #define do_copy() {                                       \
@@ -155,7 +156,8 @@ void image_cb(const sensor_msgs::ImageConstPtr& msg)
 const unsigned char* convert_pixels(const unsigned char* src,
                      std::string src_coding,
                      size_t dest_stride,
-                     unsigned char* dest, int force_copy) {
+                     unsigned char* dest, int force_copy,
+                                    bool do_colormap) {
   static int gave_error=0;
   const unsigned char *src_ptr;
   static int attempted_to_start_glsl_program=0;
@@ -171,6 +173,18 @@ const unsigned char* convert_pixels(const unsigned char* src,
   case CAM_IFACE_MONO8:
     switch (gl_data_format) {
     case GL_LUMINANCE:
+
+      if (do_colormap) {
+        if (!attempted_to_start_glsl_program) {
+          if (use_shaders) {
+            setShaders("colormap.vert","colormap.frag");
+            if (use_shaders) {
+            }
+          }
+          attempted_to_start_glsl_program=1;
+        }
+      }
+
       if (copy_required) {
         do_copy();
         return dest;
@@ -234,7 +248,7 @@ const unsigned char* convert_pixels(const unsigned char* src,
     //FIXME: add switch (gl_data_format)
     if (!attempted_to_start_glsl_program) {
       if (use_shaders) {
-	setShaders();
+	setShaders("demosaic.vrt","demosaic.frg");
 	if (use_shaders) {
 
 	  firstRed = glGetUniformLocation(glsl_program,"firstRed");
@@ -449,7 +463,7 @@ void display_pixels(void) {
             }
         }
 
-void setShaders() {
+void setShaders(const char* vert_fname, const char* frag_fname) {
 
   const char * vv;
   const char * ff;
@@ -464,14 +478,14 @@ void setShaders() {
                 vs = demosaic_vrt;
                 if (vs==NULL) {
                   fprintf(stderr,"ERROR: failed to read vertex shader %s\n",
-			  "demosaic.vrt");
+			  vert_fname);
                   use_shaders = 0;
                   return;
                 }
                 fs = demosaic_frg;
                 if (fs==NULL) {
                   fprintf(stderr,"ERROR: failed to read fragment shader %s\n",
-			  "demosaic.frg");
+			  frag_fname);
                   use_shaders = 0;
                   return;
                 }
@@ -654,6 +668,7 @@ int main(int argc, char** argv) {
   }
 
   std::string transport = (argc > 1) ? argv[1] : "raw";
+  bool mono_uses_colormap=true; // should make this a CLI argument
   image_transport::Subscriber sub_;
   image_transport::ImageTransport it(nh);
 
@@ -694,7 +709,7 @@ int main(int argc, char** argv) {
 /* Send the data to OpenGL. Use the fastest possible method. */
 
 void upload_image_data_to_opengl(const unsigned char* raw_image_data,
-                                 std::string encoding) {
+                                 std::string encoding, bool do_colormap) {
   const unsigned char * gl_image_data;
   static unsigned char* show_pixels=NULL;
   GLubyte* ptr;
@@ -708,7 +723,7 @@ void upload_image_data_to_opengl(const unsigned char* raw_image_data,
     glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, PBO_stride*tex_height, 0, GL_STREAM_DRAW_ARB);
     ptr = (GLubyte*)glMapBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, GL_WRITE_ONLY_ARB);
     if(ptr) {
-      convert_pixels(raw_image_data, encoding, PBO_stride, ptr, 1);
+      convert_pixels(raw_image_data, encoding, PBO_stride, ptr, 1, do_colormap);
       glUnmapBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB); // release pointer to mapping buffer
     }
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
@@ -723,7 +738,7 @@ void upload_image_data_to_opengl(const unsigned char* raw_image_data,
       }
     }
 
-    gl_image_data = convert_pixels(raw_image_data, encoding, PBO_stride, show_pixels, 0);
+    gl_image_data = convert_pixels(raw_image_data, encoding, PBO_stride, show_pixels, 0, do_colormap);
 
     glBindTexture(GL_TEXTURE_2D, textureId);
     glTexSubImage2D(GL_TEXTURE_2D, /* target */
