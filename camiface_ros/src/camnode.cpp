@@ -386,7 +386,7 @@ int CameraNode::run()
             _check_error();
 
             if (!_got_frame) {
-                ROS_INFO("recieving images");
+                ROS_INFO("receiving images");
                 _got_frame = true;
             }
 
