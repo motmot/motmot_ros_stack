@@ -109,7 +109,14 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
     _device_number(-1),
     _interface_name("")
 {
-    node_priv.param("host_timestamp", _host_timestamp, _host_timestamp);
+    char mode_string[255];
+    int _ghost_timestamp = 0;
+    int _phost_timestamp = 0;
+
+    ros::param::get ("host_timestamp", _ghost_timestamp);
+    _node_priv.getParam("host_timestamp", _phost_timestamp);
+
+    _host_timestamp = 1 ? _ghost_timestamp || _phost_timestamp : 0;
     if (_host_timestamp)
         ROS_INFO("host timestamps ON");
     else
