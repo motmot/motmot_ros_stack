@@ -227,7 +227,6 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
         if (_verbose)
             ROS_INFO("%d mode(s) available:",num_modes);
         for (int i=0; i<num_modes; i++) {
-            char mode_string[255];
             cam_iface_get_mode_string(_device_number,i,mode_string,255);
             if (strstr(mode_string,"FORMAT7_0")!=NULL) {
                 if (strstr(mode_string,"MONO8")!=NULL) {
@@ -239,7 +238,8 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
                 ROS_INFO("  %d: %s",i,mode_string);
         }
     }
-    ROS_INFO("chose mode %d", mode_number);
+    cam_iface_get_mode_string(_device_number,mode_number,mode_string,255);
+    ROS_INFO("chose mode %d (%s)", mode_number, mode_string);
 
     cam_iface_constructor_func_t new_CamContext = cam_iface_get_constructor_func(_device_number);
     cc = new_CamContext(
@@ -285,12 +285,12 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
 
     if (_verbose)
         ROS_INFO("%d trigger source(s):", num_trigger_modes);
-    char mode[255];
+
     for (int i=0; i<num_trigger_modes; i++) {
-        CamContext_get_trigger_mode_string( cc, i, mode, 255 );
-        _trigger_modes[std::string(mode)] = i;
+        CamContext_get_trigger_mode_string( cc, i, mode_string, 255 );
+        _trigger_modes[std::string(mode_string)] = i;
         if (_verbose)
-            ROS_INFO("  %s (#%d)", mode, i);
+            ROS_INFO("  %s (#%d)", mode_string, i);
 
     }
 
@@ -323,8 +323,13 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
             step = width;
             encoding = sensor_msgs::image_encodings::YUV422;
             break;
+        case CAM_IFACE_UNKNOWN:
+            ROS_ERROR("unknown cam_iface pixel coding");
+            /* fall through */
         default:
-            ROS_FATAL("do not know encoding for this format: %x", cc->coding);
+            ROS_ERROR("unsupported cam_iface pixel coding: 0x%x", cc->coding);
+            cam_iface_get_mode_string(_device_number,mode_number,mode_string,255);
+            ROS_FATAL("camera mode not supported: %s", mode_string);
             exit(1);
     }
 
