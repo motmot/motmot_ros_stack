@@ -240,10 +240,10 @@ const unsigned char* convert_pixels(const unsigned char* src,
 	  firstRed = glGetUniformLocation(glsl_program,"firstRed");
 	  switch(static_coding_map[src_coding]) {
 	  case CAM_IFACE_MONO8_BAYER_BGGR:
-	    glUniform2f(firstRed,0,0);
+	    glUniform2f(firstRed,1,1);
 	    break;
 	  case CAM_IFACE_MONO8_BAYER_RGGB:
-	    glUniform2f(firstRed,1,1);
+	    glUniform2f(firstRed,0,0);
 	    break;
 	  case CAM_IFACE_MONO8_BAYER_GRBG:
 	    glUniform2f(firstRed,0,1);
