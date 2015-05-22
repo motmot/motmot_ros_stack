@@ -172,8 +172,9 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
         Camwire_id cam_info_struct;
         cam_iface_get_camera_info(i, &cam_info_struct);
         if (cam_iface_have_error()==CAM_IFACE_CAMERA_NOT_AVAILABLE_ERROR) {
-            ROS_WARN("camera %d: (not available)",i);
+            ROS_WARN("camera %d: (not available - in use?)",i);
             cam_iface_clear_error();
+            safe_names.push_back("?");
             continue;
         }
 
