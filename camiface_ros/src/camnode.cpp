@@ -334,6 +334,13 @@ CameraNode::CameraNode(ros::NodeHandle &node_priv, int argc, char** argv) :
             exit(1);
     }
 
+    int framerate = -1;
+    _node_priv.getParam("framerate", framerate);
+    if (framerate > 0) {
+        ROS_INFO("setting framerate -> %d", framerate);
+        CamContext_set_framerate(cc, framerate);
+    }
+
     CamContext_start_camera(cc);
     _check_error();
 }
