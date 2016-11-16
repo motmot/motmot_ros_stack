@@ -19,6 +19,7 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 FIND_PACKAGE(SDL)
 FIND_PACKAGE(camiface)
+FIND_PACKAGE(OpenGL)
 
 #uncomment if you have defined messages
 #rosbuild_genmsg()
@@ -58,6 +59,6 @@ add_custom_command (
 include_directories( ${CMAKE_CURRENT_BINARY_DIR} )
 
 rosbuild_add_executable(gl_view src/gl_view.cpp ${CMAKE_CURRENT_BINARY_DIR}/demosaic_frg.c ${CMAKE_CURRENT_BINARY_DIR}/demosaic_vrt.c)
-target_link_libraries(gl_view GLEW ${SDL_LIBRARY})
+target_link_libraries(gl_view ${OPENGL_gl_LIBRARY} GLEW ${SDL_LIBRARY})
 
 rosbuild_add_executable(raw_info src/raw_info.cpp)
