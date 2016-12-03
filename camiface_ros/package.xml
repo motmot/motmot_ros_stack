@@ -1,0 +1,33 @@
+<package>
+  <name>camiface_ros</name>
+  <version>0.0.1</version>
+  <description>
+     camiface_ros
+
+     Capture image streams using libcamiface for ROS.
+  </description>
+  <author>astraw</author>
+  <maintainer email="strawman@astraw.com">Andrew Straw</maintainer>
+  <license>BSD</license>
+
+  <export>
+    <cpp
+	lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lcamiface_ros"
+	/>
+  </export>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>roscpp</build_depend>
+  <build_depend>dynamic_reconfigure</build_depend>
+  <build_depend>image_transport</build_depend>
+  <build_depend>camera_info_manager</build_depend>
+  <build_depend>libcamiface</build_depend>
+  <build_depend>glew</build_depend>
+  <build_depend>sdl</build_depend>
+
+  <run_depend>roscpp</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+  <run_depend>dynamic_reconfigure</run_depend>
+
+</package>

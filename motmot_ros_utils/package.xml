@@ -1,0 +1,13 @@
+<package>
+  <name>motmot_ros_utils</name>
+  <version>0.0.1</version>
+  <description>
+     motmot_ros_utils
+  </description>
+  <author>John Stowers</author>
+  <maintainer email="strawman@astraw.com">Andrew Straw</maintainer>
+  <license>BSD</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <run_depend>std_msgs</run_depend>
+  <run_depend>rospy</run_depend>
+</package>

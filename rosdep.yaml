@@ -1,6 +1,0 @@
-glew:
-  ubuntu: libglew1.5-dev
-libcamiface:
-  ubuntu: libcamiface-dev
-sdl:
-  ubuntu: libsdl1.2-dev
